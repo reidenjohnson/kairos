@@ -1,0 +1,13 @@
+*.iml
+.gradle/
+local.properties
+.idea/
+.DS_Store
+Thumbs.db
+build/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# In-progress design mockups (large seeded payloads; regenerated from working files)
+design/
