@@ -252,8 +252,9 @@ private fun SpeciesCard(row: SpeciesScore, c: Conditions, emphasized: Boolean, o
             Column(horizontalAlignment = Alignment.End) {
                 Text(
                     "${row.percent}",
-                    fontSize = 34.sp,
-                    fontWeight = FontWeight.Black,
+                    fontFamily = Bricolage,
+                    fontSize = 36.sp,
+                    fontWeight = FontWeight.ExtraBold,
                     letterSpacing = (-1).sp,
                     color = ratingColor(row.rating),
                 )
@@ -316,7 +317,7 @@ private fun OutOfSeasonRow(row: SpeciesScore, onOpenSeason: (String) -> Unit) {
         val label = seasonsFor(row.species.name)?.let { seasonStatus(it, today).headline() } ?: ""
         Text(label, style = MaterialTheme.typography.labelSmall, color = KairosColors.Faint)
         Spacer(Modifier.width(12.dp))
-        Text("${row.percent}", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = KairosColors.Faint)
+        Text("${row.percent}", fontFamily = Bricolage, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = KairosColors.Faint)
     }
 }
 

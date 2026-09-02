@@ -68,5 +68,5 @@ fun screenBackground(): Brush = Brush.radialGradient(
 
 @Composable
 fun KairosTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = KairosScheme, content = content)
+    MaterialTheme(colorScheme = KairosScheme, typography = KairosTypography, content = content)
 }
