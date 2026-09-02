@@ -1,0 +1,279 @@
+package com.kairos.ui
+
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.Forest
+import androidx.compose.material.icons.outlined.ShowChart
+import androidx.compose.material.icons.outlined.WaterDrop
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.NavigationDrawerItemDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberDrawerState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import com.kairos.data.Forecast
+import com.kairos.data.ForecastCache
+import com.kairos.data.Location
+import com.kairos.data.LocationProvider
+import com.kairos.data.Outlook
+import com.kairos.data.ScoreHistory
+import com.kairos.data.WeatherRepository
+import com.kairos.engine.Side
+import com.kairos.engine.scoreAll
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.time.LocalDate
+
+/** The forecast side of the app's state. [live] false means it came from cache. */
+sealed interface UiState {
+    data object Loading : UiState
+    data class Ready(val forecast: Forecast, val live: Boolean, val savedAtMillis: Long) : UiState
+    data class Error(val message: String) : UiState
+}
+
+private enum class Dest { TODAY, SEASONS, WEEKLY }
+
+/**
+ * App entry: owns location + forecast + weekly outlook + navigation, behind a
+ * left navigation drawer (the approved redesign — see design/Menu.dc.html). The
+ * Today screen filters Hunt/Fish/Best; Seasons and Weekly are their own screens.
+ * Every successful live forecast is logged to [ScoreHistory] for the Trends chart.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun KairosApp() {
+    KairosTheme {
+        val context = LocalContext.current
+        val scope = rememberCoroutineScope()
+        val drawerState = rememberDrawerState(DrawerValue.Closed)
+
+        var state by remember { mutableStateOf<UiState>(UiState.Loading) }
+        var outlook by remember { mutableStateOf<Outlook?>(null) }
+        var refreshing by remember { mutableStateOf(false) }
+        var reloadKey by remember { mutableIntStateOf(0) }
+        var dest by remember { mutableStateOf(Dest.TODAY) }
+        var side by remember { mutableStateOf<Side?>(null) } // null = today's best (both)
+        var seasonFocus by remember { mutableStateOf<String?>(null) }
+
+        val permissionLauncher = rememberLauncherForActivityResult(
+            ActivityResultContracts.RequestMultiplePermissions(),
+        ) { reloadKey++ }
+
+        LaunchedEffect(Unit) {
+            if (!LocationProvider.hasPermission(context)) {
+                permissionLauncher.launch(
+                    arrayOf(
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION,
+                    ),
+                )
+            }
+        }
+
+        LaunchedEffect(reloadKey) {
+            if (state is UiState.Ready) refreshing = true else state = UiState.Loading
+            val place = LocationProvider.current(context) ?: Location.SEBAGO
+            state = try {
+                val forecast = withContext(Dispatchers.IO) { WeatherRepository.fetch(place) }
+                ForecastCache.save(context, forecast)
+                ScoreHistory.record(context, LocalDate.now(), scoreAll(forecast.conditions))
+                outlook = runCatching {
+                    withContext(Dispatchers.IO) { WeatherRepository.fetchOutlook(place) }
+                }.getOrNull()
+                UiState.Ready(forecast, live = true, savedAtMillis = System.currentTimeMillis())
+            } catch (e: Exception) {
+                val cached = ForecastCache.load(context)
+                if (cached != null) {
+                    UiState.Ready(cached.forecast, live = false, savedAtMillis = cached.savedAtMillis)
+                } else {
+                    UiState.Error(e.message ?: "Couldn't reach the weather service.")
+                }
+            }
+            refreshing = false
+        }
+
+        val placeLabel = (state as? UiState.Ready)?.forecast?.placeLabel ?: "Locating…"
+
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            drawerContent = {
+                DrawerContent(
+                    placeLabel = placeLabel,
+                    current = dest,
+                    currentSide = side,
+                    onSelect = { d, s ->
+                        dest = d
+                        if (d == Dest.TODAY) side = s
+                        scope.launch { drawerState.close() }
+                    },
+                )
+            },
+        ) {
+            val title = when (dest) {
+                Dest.TODAY -> when (side) {
+                    Side.HUNT -> "Hunt"
+                    Side.FISH -> "Fish"
+                    null -> "Today's Best"
+                }
+                Dest.SEASONS -> "Seasons"
+                Dest.WEEKLY -> "Weekly outlook"
+            }
+            Scaffold(
+                containerColor = KairosColors.Bg,
+                topBar = {
+                    TopAppBar(
+                        title = { Text(title, fontWeight = FontWeight.Bold) },
+                        navigationIcon = {
+                            IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                                Icon(Icons.Filled.Menu, contentDescription = "Menu")
+                            }
+                        },
+                        actions = {
+                            if (dest != Dest.SEASONS) {
+                                IconButton(onClick = { reloadKey++ }) {
+                                    Icon(Icons.Filled.Refresh, contentDescription = "Refresh")
+                                }
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+                    )
+                },
+            ) { padding ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(screenBackground())
+                        .padding(padding),
+                ) {
+                    when (dest) {
+                        Dest.TODAY -> TodayScreen(
+                            state = state,
+                            sideFilter = side,
+                            refreshing = refreshing,
+                            onRefresh = { reloadKey++ },
+                            onSelectSide = { side = it },
+                            onOpenSeason = { species ->
+                                seasonFocus = species
+                                dest = Dest.SEASONS
+                            },
+                        )
+                        Dest.SEASONS -> SeasonsScreen(focusSpecies = seasonFocus)
+                        Dest.WEEKLY -> TrendsScreen(state = state, outlook = outlook)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DrawerContent(
+    placeLabel: String,
+    current: Dest,
+    currentSide: Side?,
+    onSelect: (Dest, Side?) -> Unit,
+) {
+    ModalDrawerSheet(
+        drawerContainerColor = KairosColors.Surface,
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        Spacer(Modifier.height(20.dp))
+        Column(Modifier.padding(horizontal = 20.dp)) {
+            Box(
+                modifier = Modifier
+                    .height(44.dp)
+                    .background(
+                        androidx.compose.ui.graphics.Brush.linearGradient(
+                            listOf(Color(0xFF2E5E4E), Color(0xFF3B9E6E)),
+                        ),
+                        RoundedCornerShape(12.dp),
+                    )
+                    .padding(horizontal = 12.dp),
+                contentAlignment = androidx.compose.ui.Alignment.Center,
+            ) {
+                KairosMark()
+            }
+            Spacer(Modifier.height(10.dp))
+            Text("Kairos", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
+            Text(placeLabel, style = MaterialTheme.typography.bodySmall, color = KairosColors.Faint)
+        }
+        Spacer(Modifier.height(18.dp))
+
+        DrawerItem("Today's Best", Icons.Filled.Star, current == Dest.TODAY && currentSide == null) {
+            onSelect(Dest.TODAY, null)
+        }
+        DrawerItem("Hunt", Icons.Outlined.Forest, current == Dest.TODAY && currentSide == Side.HUNT) {
+            onSelect(Dest.TODAY, Side.HUNT)
+        }
+        DrawerItem("Fish", Icons.Outlined.WaterDrop, current == Dest.TODAY && currentSide == Side.FISH) {
+            onSelect(Dest.TODAY, Side.FISH)
+        }
+        DrawerItem("Seasons", Icons.Filled.CalendarMonth, current == Dest.SEASONS) {
+            onSelect(Dest.SEASONS, null)
+        }
+        DrawerItem("Weekly outlook", Icons.Outlined.ShowChart, current == Dest.WEEKLY) {
+            onSelect(Dest.WEEKLY, null)
+        }
+    }
+}
+
+@Composable
+private fun DrawerItem(
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    NavigationDrawerItem(
+        label = { Text(label) },
+        icon = { Icon(icon, contentDescription = null) },
+        selected = selected,
+        onClick = onClick,
+        colors = NavigationDrawerItemDefaults.colors(
+            selectedContainerColor = KairosColors.SegBottom,
+            selectedTextColor = KairosColors.OnSeg,
+            selectedIconColor = KairosColors.Pine,
+            unselectedContainerColor = Color.Transparent,
+            unselectedTextColor = KairosColors.Dim,
+            unselectedIconColor = KairosColors.Dim,
+        ),
+        modifier = Modifier.padding(horizontal = 12.dp),
+    )
+}
