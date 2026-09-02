@@ -21,8 +21,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -49,6 +51,7 @@ import kotlin.math.roundToInt
  * current conditions as chips, a segmented Best/Hunt/Fish control, then scores
  * best-first with the top pick emphasized and out-of-season species grouped below.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TodayScreen(
     state: UiState,
@@ -61,7 +64,13 @@ fun TodayScreen(
     when (state) {
         is UiState.Loading -> Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
         is UiState.Error -> Box(Modifier.fillMaxSize(), Alignment.Center) { ErrorView(state.message, onRefresh) }
-        is UiState.Ready -> ForecastList(state, sideFilter, onSelectSide, onOpenSeason)
+        is UiState.Ready -> PullToRefreshBox(
+            isRefreshing = refreshing,
+            onRefresh = onRefresh,
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            ForecastList(state, sideFilter, refreshing, onSelectSide, onOpenSeason)
+        }
     }
 }
 
@@ -87,6 +96,7 @@ private fun isPrimary(speciesName: String): Boolean {
 private fun ForecastList(
     ready: UiState.Ready,
     sideFilter: Side?,
+    refreshing: Boolean,
     onSelectSide: (Side?) -> Unit,
     onOpenSeason: (String) -> Unit,
 ) {
@@ -106,7 +116,7 @@ private fun ForecastList(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item { Spacer(Modifier.height(2.dp)) }
-        if (!ready.live) item { OfflineBanner(ready.savedAtMillis) }
+        if (!ready.live && !refreshing) item { OfflineBanner(ready.savedAtMillis) }
         item { Header(forecast, ready.savedAtMillis, ready.live) }
         item { ConditionChips(forecast) }
         item { SegmentedControl(sideFilter, onSelectSide) }

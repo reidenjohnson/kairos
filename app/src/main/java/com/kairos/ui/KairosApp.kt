@@ -89,7 +89,15 @@ fun KairosApp() {
         val scope = rememberCoroutineScope()
         val drawerState = rememberDrawerState(DrawerValue.Closed)
 
-        var state by remember { mutableStateOf<UiState>(UiState.Loading) }
+        // Show the last cached forecast immediately on open, then refresh — so the
+        // app isn't a blank spinner while it fetches.
+        var state by remember {
+            mutableStateOf<UiState>(
+                ForecastCache.load(context)
+                    ?.let { UiState.Ready(it.forecast, live = false, it.savedAtMillis) }
+                    ?: UiState.Loading,
+            )
+        }
         var outlook by remember { mutableStateOf<Outlook?>(null) }
         var refreshing by remember { mutableStateOf(false) }
         var reloadKey by remember { mutableIntStateOf(0) }
@@ -134,23 +142,26 @@ fun KairosApp() {
         LaunchedEffect(reloadKey) {
             if (state is UiState.Ready) refreshing = true else state = UiState.Loading
             val place = LocationProvider.current(context) ?: Location.SEBAGO
-            state = try {
+            try {
                 val forecast = withContext(Dispatchers.IO) { WeatherRepository.fetch(place) }
                 ForecastCache.save(context, forecast)
                 ScoreHistory.record(context, LocalDate.now(), scoreAll(forecast.conditions))
+                state = UiState.Ready(forecast, live = true, savedAtMillis = System.currentTimeMillis())
+                refreshing = false
+                // Weekly outlook is a second, heavier fetch — load it after the
+                // forecast is already on screen so it never delays the first paint.
                 outlook = runCatching {
                     withContext(Dispatchers.IO) { WeatherRepository.fetchOutlook(place) }
                 }.getOrNull()
-                UiState.Ready(forecast, live = true, savedAtMillis = System.currentTimeMillis())
             } catch (e: Exception) {
                 val cached = ForecastCache.load(context)
-                if (cached != null) {
+                state = if (cached != null) {
                     UiState.Ready(cached.forecast, live = false, savedAtMillis = cached.savedAtMillis)
                 } else {
                     UiState.Error(e.message ?: "Couldn't reach the weather service.")
                 }
+                refreshing = false
             }
-            refreshing = false
         }
 
         val placeLabel = (state as? UiState.Ready)?.forecast?.placeLabel ?: "Locating…"
