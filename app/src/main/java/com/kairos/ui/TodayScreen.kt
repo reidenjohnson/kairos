@@ -110,6 +110,9 @@ private fun ForecastList(
         item { Header(forecast, ready.savedAtMillis, ready.live) }
         item { ConditionChips(forecast) }
         item { SegmentedControl(sideFilter, onSelectSide) }
+        if (sideFilter != Side.FISH && forecast.legalShootingHours != null) {
+            item { LegalLightCard(forecast) }
+        }
         item { SortRow(openCount) }
         items(primary) { row ->
             SpeciesCard(row, c, emphasized = row == primary.firstOrNull(), onOpenSeason = onOpenSeason)
@@ -198,6 +201,41 @@ private fun SegmentedControl(side: Side?, onSelect: (Side?) -> Unit) {
                     color = if (selected) KairosColors.OnSeg else KairosColors.Dim,
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun LegalLightCard(f: Forecast) {
+    val hours = f.legalShootingHours ?: return
+    val fmt = java.time.format.DateTimeFormatter.ofPattern("h:mm a")
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(KairosColors.Surface)
+            .border(1.dp, KairosColors.Line, RoundedCornerShape(16.dp))
+            .padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                "LEGAL SHOOTING HOURS",
+                style = MaterialTheme.typography.labelSmall,
+                color = KairosColors.Pine,
+                letterSpacing = 1.4.sp,
+            )
+            Spacer(Modifier.height(3.dp))
+            Text(
+                "${fmt.format(hours.first)} – ${fmt.format(hours.second)}",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                "½ hr before sunrise (${fmt.format(f.sunriseTime)}) to ½ hr after sunset (${fmt.format(f.sunsetTime)})",
+                style = MaterialTheme.typography.labelSmall,
+                color = KairosColors.Faint,
+            )
         }
     }
 }

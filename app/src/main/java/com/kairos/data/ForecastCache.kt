@@ -31,6 +31,8 @@ object ForecastCache {
             .put("tempDropNext24hF", f.tempDropNext24hF)
             .put("moonName", f.moonName)
             .put("moonIllum", c.moonIllum)
+            .put("sunrise", f.sunrise)
+            .put("sunset", f.sunset)
         prefs(context).edit().putString(KEY, o.toString()).apply()
     }
 
@@ -60,6 +62,8 @@ object ForecastCache {
                 pressureTrendInHg = o.getDouble("pressureTrendInHg"),
                 tempDropNext24hF = o.getDouble("tempDropNext24hF"),
                 moonName = o.getString("moonName"),
+                sunrise = o.optString("sunrise", null),
+                sunset = o.optString("sunset", null),
             )
             Cached(forecast, o.getLong("savedAt"))
         } catch (e: Exception) {

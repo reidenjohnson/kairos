@@ -36,6 +36,9 @@ data class Forecast(
     val pressureTrendInHg: Double,
     val tempDropNext24hF: Double,
     val moonName: String,
+    /** Local sunrise/sunset ISO datetime for the day, e.g. "2026-09-02T06:07" (null if unavailable). */
+    val sunrise: String? = null,
+    val sunset: String? = null,
 ) {
     val trendWord: String
         get() = when {
@@ -43,6 +46,26 @@ data class Forecast(
             pressureTrendInHg > 0.01 -> "rising"
             else -> "steady"
         }
+
+    /** Sunrise as a local time, or null if unavailable. */
+    val sunriseTime: java.time.LocalTime? get() = parseIsoTime(sunrise)
+
+    /** Sunset as a local time, or null if unavailable. */
+    val sunsetTime: java.time.LocalTime? get() = parseIsoTime(sunset)
+
+    /**
+     * Maine legal shooting/hunting hours: a half-hour before sunrise until a
+     * half-hour after sunset (per Maine IF&W). Null if sun times are unavailable.
+     */
+    val legalShootingHours: Pair<java.time.LocalTime, java.time.LocalTime>?
+        get() {
+            val sr = sunriseTime ?: return null
+            val ss = sunsetTime ?: return null
+            return sr.minusMinutes(30) to ss.plusMinutes(30)
+        }
+
+    private fun parseIsoTime(iso: String?): java.time.LocalTime? =
+        iso?.let { runCatching { java.time.LocalTime.parse(it.substring(11, 16)) }.getOrNull() }
 }
 
 /** One species' best score on one day, and the local hour (0-23) it peaks. */
@@ -67,6 +90,7 @@ object WeatherRepository {
             "?latitude=${place.lat}&longitude=${place.lon}" +
             "&hourly=temperature_2m,surface_pressure,wind_speed_10m,cloud_cover" +
             "&current=temperature_2m,surface_pressure,wind_speed_10m,cloud_cover" +
+            "&daily=sunrise,sunset" +
             "&timezone=auto&past_days=1&forecast_days=2" +
             "&temperature_unit=fahrenheit&wind_speed_unit=mph"
 
@@ -142,6 +166,24 @@ object WeatherRepository {
         val waterF = SEBAGO_WATER_F.getValue(date.monthValue).toDouble()
         val moon = moonInfo(date)
 
+        // Sun times for the day (for legal shooting hours), local to the place.
+        var sunrise: String? = null
+        var sunset: String? = null
+        root.optJSONObject("daily")?.let { daily ->
+            val days = daily.optJSONArray("time")
+            val rises = daily.optJSONArray("sunrise")
+            val sets = daily.optJSONArray("sunset")
+            if (days != null && rises != null && sets != null) {
+                for (k in 0 until days.length()) {
+                    if (days.getString(k).take(10) == date.toString()) {
+                        sunrise = rises.optString(k, null)
+                        sunset = sets.optString(k, null)
+                        break
+                    }
+                }
+            }
+        }
+
         val conditions = Conditions(
             airF = airF,
             waterF = waterF,
@@ -165,6 +207,8 @@ object WeatherRepository {
             pressureTrendInHg = pressureTrendInHg,
             tempDropNext24hF = tempDropNext24hF,
             moonName = moon.phaseName,
+            sunrise = sunrise,
+            sunset = sunset,
         )
     }
 
