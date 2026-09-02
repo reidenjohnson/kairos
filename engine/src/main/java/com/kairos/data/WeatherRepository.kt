@@ -2,7 +2,9 @@ package com.kairos.data
 
 import com.kairos.engine.Conditions
 import com.kairos.engine.SEBAGO_WATER_F
+import com.kairos.engine.Side
 import com.kairos.engine.moonInfo
+import com.kairos.engine.scoreAll
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -43,6 +45,15 @@ data class Forecast(
         }
 }
 
+/** One species' best score on one day, and the local hour (0-23) it peaks. */
+data class DayScore(val date: LocalDate, val bestPercent: Int, val bestHour: Int)
+
+/** A species' day-by-day forecasted outlook (the "expected" line on the chart). */
+data class SpeciesOutlook(val speciesName: String, val side: Side, val days: List<DayScore>)
+
+/** The forecasted outlook for every species over the coming days. */
+data class Outlook(val placeLabel: String, val perSpecies: List<SpeciesOutlook>)
+
 /**
  * Pulls live weather from Open-Meteo (free, no API key) and turns it into a
  * [Conditions] for the engine. This is the app-layer port of forecast.py's
@@ -54,10 +65,13 @@ object WeatherRepository {
     private fun buildUrl(place: Place): String =
         "https://api.open-meteo.com/v1/forecast" +
             "?latitude=${place.lat}&longitude=${place.lon}" +
-            "&hourly=temperature_2m,surface_pressure" +
+            "&hourly=temperature_2m,surface_pressure,wind_speed_10m,cloud_cover" +
             "&current=temperature_2m,surface_pressure,wind_speed_10m,cloud_cover" +
             "&timezone=auto&past_days=1&forecast_days=2" +
             "&temperature_unit=fahrenheit&wind_speed_unit=mph"
+
+    /** Round to the nearest [step] — keeps the score steady when weather is roughly flat. */
+    private fun roundTo(x: Double, step: Double): Double = Math.round(x / step) * step
 
     /**
      * Fetch + parse + score-ready for [place] (defaults to Sebago). BLOCKING —
@@ -89,16 +103,14 @@ object WeatherRepository {
     /** Visible for testing: turn an Open-Meteo response into a [Forecast]. */
     internal fun parse(root: JSONObject, placeLabel: String): Forecast {
         val current = root.getJSONObject("current")
-        val airF = current.getDouble("temperature_2m")
-        val pressureInHg = current.getDouble("surface_pressure") * HPA_TO_INHG
-        val windMph = current.getDouble("wind_speed_10m")
-        val cloudPct = current.getDouble("cloud_cover")
-        val currentTime = current.getString("time") // local to Location.TZ
+        val currentTime = current.getString("time") // local to the place's timezone
 
         val hourly = root.getJSONObject("hourly")
         val times = hourly.getJSONArray("time")
         val pressures = hourly.getJSONArray("surface_pressure")
         val temps = hourly.getJSONArray("temperature_2m")
+        val winds = hourly.getJSONArray("wind_speed_10m")
+        val clouds = hourly.getJSONArray("cloud_cover")
 
         // Index of the current hour within the hourly arrays (tz-consistent).
         val nowHour = currentTime.take(13) + ":00"
@@ -106,15 +118,25 @@ object WeatherRepository {
         while (i < times.length() && times.getString(i) != nowHour) i++
         if (i >= times.length()) i = times.length() / 2 // fallback, mirrors reference
 
+        // Score off the current HOUR's forecast values (stable across the hour)
+        // rather than the `current` block (which updates every few minutes with
+        // gusts/pressure ticks and makes the score jitter). Inputs are rounded so
+        // that roughly-flat weather yields a roughly-flat score all day.
+        val airF = roundTo(temps.getDouble(i), 1.0)
+        val pressureInHg = roundTo(pressures.getDouble(i) * HPA_TO_INHG, 0.01)
+        val windMph = roundTo(winds.getDouble(i), 1.0)
+        val cloudPct = roundTo(clouds.getDouble(i), 5.0)
+
         // Pressure trend over ~6h (inHg, negative = falling).
         val i6 = maxOf(0, i - 6)
-        val pressureTrendInHg = (pressures.getDouble(i) - pressures.getDouble(i6)) * HPA_TO_INHG
+        val pressureTrendInHg =
+            roundTo((pressures.getDouble(i) - pressures.getDouble(i6)) * HPA_TO_INHG, 0.01)
 
         // Coldest drop coming over the next 24h (°F, positive = front incoming).
         val end = minOf(i + 24, temps.length())
         var coldest = temps.getDouble(i)
         for (k in i until end) coldest = minOf(coldest, temps.getDouble(k))
-        val tempDropNext24hF = temps.getDouble(i) - coldest
+        val tempDropNext24hF = roundTo(temps.getDouble(i) - coldest, 1.0)
 
         val date = LocalDate.parse(currentTime.take(10))
         val waterF = SEBAGO_WATER_F.getValue(date.monthValue).toDouble()
@@ -144,5 +166,76 @@ object WeatherRepository {
             tempDropNext24hF = tempDropNext24hF,
             moonName = moon.phaseName,
         )
+    }
+
+    private fun outlookUrl(place: Place, days: Int): String =
+        "https://api.open-meteo.com/v1/forecast" +
+            "?latitude=${place.lat}&longitude=${place.lon}" +
+            "&hourly=temperature_2m,surface_pressure,wind_speed_10m,cloud_cover" +
+            "&timezone=auto&past_days=1&forecast_days=$days" +
+            "&temperature_unit=fahrenheit&wind_speed_unit=mph"
+
+    /**
+     * Fetch a multi-day outlook: for each of the next [days] days, the best score
+     * each species reaches at any hour (the "expected" line the Trends chart draws
+     * against the recorded "actual"). BLOCKING — call off the main thread. Uses the
+     * same rounded, hourly-block inputs as [parse], so it is consistent with the
+     * live score.
+     */
+    fun fetchOutlook(place: Place = Location.SEBAGO, days: Int = 7): Outlook =
+        parseOutlook(JSONObject(httpGet(outlookUrl(place, days))), place.label)
+
+    /** Visible for testing: turn an hourly Open-Meteo response into an [Outlook]. */
+    internal fun parseOutlook(root: JSONObject, placeLabel: String): Outlook {
+        val hourly = root.getJSONObject("hourly")
+        val times = hourly.getJSONArray("time")
+        val temps = hourly.getJSONArray("temperature_2m")
+        val pressures = hourly.getJSONArray("surface_pressure")
+        val winds = hourly.getJSONArray("wind_speed_10m")
+        val clouds = hourly.getJSONArray("cloud_cover")
+        val n = times.length()
+
+        val today = LocalDate.now()
+        // speciesName -> (date -> best DayScore so far)
+        val best = LinkedHashMap<String, LinkedHashMap<LocalDate, DayScore>>()
+        val sideOf = HashMap<String, Side>()
+
+        for (i in 0 until n) {
+            val date = LocalDate.parse(times.getString(i).take(10))
+            if (date.isBefore(today)) continue // outlook is forward-looking
+            val hour = times.getString(i).substring(11, 13).toIntOrNull() ?: 12
+
+            val i6 = maxOf(0, i - 6)
+            val end = minOf(i + 24, temps.length())
+            var coldest = temps.getDouble(i)
+            for (k in i until end) coldest = minOf(coldest, temps.getDouble(k))
+
+            val c = Conditions(
+                airF = roundTo(temps.getDouble(i), 1.0),
+                waterF = SEBAGO_WATER_F.getValue(date.monthValue).toDouble(),
+                windMph = roundTo(winds.getDouble(i), 1.0),
+                cloudPct = roundTo(clouds.getDouble(i), 5.0),
+                pressureInHg = roundTo(pressures.getDouble(i) * HPA_TO_INHG, 0.01),
+                pressureTrendInHg =
+                    roundTo((pressures.getDouble(i) - pressures.getDouble(i6)) * HPA_TO_INHG, 0.01),
+                tempDropNext24hF = roundTo(temps.getDouble(i) - coldest, 1.0),
+                moonIllum = moonInfo(date).illum,
+            )
+
+            for (s in scoreAll(c)) {
+                val name = s.species.name
+                sideOf[name] = s.species.side
+                val byDate = best.getOrPut(name) { LinkedHashMap() }
+                val prev = byDate[date]
+                if (prev == null || s.percent > prev.bestPercent) {
+                    byDate[date] = DayScore(date, s.percent, hour)
+                }
+            }
+        }
+
+        val perSpecies = best.map { (name, byDate) ->
+            SpeciesOutlook(name, sideOf.getValue(name), byDate.values.sortedBy { it.date })
+        }
+        return Outlook(placeLabel, perSpecies)
     }
 }

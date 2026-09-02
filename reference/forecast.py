@@ -34,7 +34,7 @@ def fetch_weather() -> dict:
     url = (
         "https://api.open-meteo.com/v1/forecast"
         f"?latitude={LAT}&longitude={LON}"
-        "&hourly=temperature_2m,surface_pressure"
+        "&hourly=temperature_2m,surface_pressure,wind_speed_10m,cloud_cover"
         "&current=temperature_2m,surface_pressure,wind_speed_10m,cloud_cover"
         f"&timezone={TZ}&past_days=1&forecast_days=2"
         "&temperature_unit=fahrenheit&wind_speed_unit=mph"
@@ -45,6 +45,16 @@ def fetch_weather() -> dict:
 
 def clamp(x: float) -> float:
     return max(0.0, min(1.0, x))
+
+
+def round_to(x: float, step: float) -> float:
+    """Round to the nearest `step` — keeps the score steady when weather is flat."""
+    return round(x / step) * step
+
+
+def _now_hour_index(times: list[str]) -> int:
+    now = datetime.now().strftime("%Y-%m-%dT%H:00")
+    return times.index(now) if now in times else len(times) // 2
 
 
 # ----------------------- factor computations -----------------------
@@ -157,13 +167,17 @@ SPECIES = {
 
 def main() -> None:
     wx = fetch_weather()
-    cur = wx["current"]
-    air_f = cur["temperature_2m"]
-    pres_inhg = cur["surface_pressure"] * 0.02953
-    wind_mph = cur["wind_speed_10m"]
-    cloud_pct = cur["cloud_cover"]
-    ptrend = pressure_trend_inhg(wx)
-    tdrop = temp_drop_next_24h(wx)
+    h = wx["hourly"]
+    i = _now_hour_index(h["time"])
+    # Score off the current HOUR's forecast values (stable across the hour) rather
+    # than the instantaneous `current` block, and round inputs so roughly-flat
+    # weather yields a roughly-flat score. See HANDOFF §9 item 8.
+    air_f = round_to(h["temperature_2m"][i], 1)
+    pres_inhg = round_to(h["surface_pressure"][i] * 0.02953, 0.01)
+    wind_mph = round_to(h["wind_speed_10m"][i], 1)
+    cloud_pct = round_to(h["cloud_cover"][i], 5)
+    ptrend = round_to(pressure_trend_inhg(wx), 0.01)
+    tdrop = round_to(temp_drop_next_24h(wx), 1)
     illum, mname = moon_illum(date.today())
     water_f = SEBAGO_WATER_F[date.today().month]
     s = sun(LOC.observer, date=date.today(), tzinfo=LOC.timezone)
