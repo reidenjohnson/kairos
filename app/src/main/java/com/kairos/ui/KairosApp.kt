@@ -1,6 +1,7 @@
 package com.kairos.ui
 
 import android.Manifest
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -38,6 +39,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -70,6 +72,9 @@ sealed interface UiState {
 
 private enum class Dest { TODAY, SEASONS, WEEKLY }
 
+/** One place in the app. [side] applies to TODAY; [seasonFocus] to SEASONS. */
+private data class NavEntry(val dest: Dest, val side: Side? = null, val seasonFocus: String? = null)
+
 /**
  * App entry: owns location + forecast + weekly outlook + navigation, behind a
  * left navigation drawer (the approved redesign — see design/Menu.dc.html). The
@@ -88,9 +93,28 @@ fun KairosApp() {
         var outlook by remember { mutableStateOf<Outlook?>(null) }
         var refreshing by remember { mutableStateOf(false) }
         var reloadKey by remember { mutableIntStateOf(0) }
-        var dest by remember { mutableStateOf(Dest.TODAY) }
-        var side by remember { mutableStateOf<Side?>(null) } // null = today's best (both)
-        var seasonFocus by remember { mutableStateOf<String?>(null) }
+
+        // Manual nav with a back stack so the system back button returns to the
+        // previous screen (e.g. Seasons → back → Today) instead of exiting.
+        var current by remember { mutableStateOf(NavEntry(Dest.TODAY)) }
+        val backStack = remember { mutableStateListOf<NavEntry>() }
+        val goTo = { entry: NavEntry ->
+            if (entry != current) {
+                backStack.add(current)
+                current = entry
+            }
+        }
+        val dest = current.dest
+        val side = current.side
+
+        // System back: close the drawer first, else pop the nav stack.
+        BackHandler(enabled = drawerState.isOpen || backStack.isNotEmpty()) {
+            if (drawerState.isOpen) {
+                scope.launch { drawerState.close() }
+            } else if (backStack.isNotEmpty()) {
+                current = backStack.removeAt(backStack.lastIndex)
+            }
+        }
 
         val permissionLauncher = rememberLauncherForActivityResult(
             ActivityResultContracts.RequestMultiplePermissions(),
@@ -139,8 +163,7 @@ fun KairosApp() {
                     current = dest,
                     currentSide = side,
                     onSelect = { d, s ->
-                        dest = d
-                        if (d == Dest.TODAY) side = s
+                        goTo(NavEntry(d, if (d == Dest.TODAY) s else null))
                         scope.launch { drawerState.close() }
                     },
                 )
@@ -188,13 +211,12 @@ fun KairosApp() {
                             sideFilter = side,
                             refreshing = refreshing,
                             onRefresh = { reloadKey++ },
-                            onSelectSide = { side = it },
+                            onSelectSide = { current = current.copy(side = it) },
                             onOpenSeason = { species ->
-                                seasonFocus = species
-                                dest = Dest.SEASONS
+                                goTo(NavEntry(Dest.SEASONS, seasonFocus = species))
                             },
                         )
-                        Dest.SEASONS -> SeasonsScreen(focusSpecies = seasonFocus)
+                        Dest.SEASONS -> SeasonsScreen(focusSpecies = current.seasonFocus)
                         Dest.WEEKLY -> TrendsScreen(state = state, outlook = outlook)
                     }
                 }
