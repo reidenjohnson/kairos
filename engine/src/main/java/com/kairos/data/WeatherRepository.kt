@@ -2,13 +2,18 @@ package com.kairos.data
 
 import com.kairos.engine.Conditions
 import com.kairos.engine.SEBAGO_WATER_F
+import com.kairos.engine.SPECIES
 import com.kairos.engine.Side
+import com.kairos.engine.activityMultiplier
 import com.kairos.engine.moonInfo
+import com.kairos.engine.score
 import com.kairos.engine.scoreAll
+import com.kairos.engine.timeOfDayActivity
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.time.LocalDate
+import kotlin.math.roundToInt
 
 /** A place to forecast for. Shared by the phone (:app) and the Wear tile (:wear). */
 data class Place(val lat: Double, val lon: Double, val label: String)
@@ -39,6 +44,8 @@ data class Forecast(
     /** Local sunrise/sunset ISO datetime for the day, e.g. "2026-09-02T06:07" (null if unavailable). */
     val sunrise: String? = null,
     val sunset: String? = null,
+    /** Today's hour-by-hour "best times" timing (null if not computed, e.g. from cache). */
+    val timing: DayTiming? = null,
 ) {
     val trendWord: String
         get() = when {
@@ -66,6 +73,42 @@ data class Forecast(
 
     private fun parseIsoTime(iso: String?): java.time.LocalTime? =
         iso?.let { runCatching { java.time.LocalTime.parse(it.substring(11, 16)) }.getOrNull() }
+}
+
+/** A side's score at one hour of today (0-23), used for the "best times" curve. */
+data class HourScore(val hour: Int, val huntScore: Int, val fishScore: Int)
+
+/**
+ * Today's timing: the hour-by-hour "best times" curve for each side, the day-level
+ * overall score per side (how good today is regardless of hour), and the sun times
+ * that shape the curve. See [Forecast.timing].
+ */
+data class DayTiming(
+    val hours: List<HourScore>,
+    val sunriseHour: Double,
+    val sunsetHour: Double,
+    val huntToday: Int,
+    val fishToday: Int,
+) {
+    fun scoreForSide(side: Side): Int = if (side == Side.FISH) fishToday else huntToday
+
+    /** Contiguous peak windows for [side]: runs of hours within 8 pts of the day's max. */
+    fun bestWindows(side: Side): List<IntRange> {
+        if (hours.isEmpty()) return emptyList()
+        val vals = hours.map { it.hour to if (side == Side.FISH) it.fishScore else it.huntScore }
+        val max = vals.maxOf { it.second }
+        val hot = vals.filter { it.second >= max - 8 }.map { it.first }.toSortedSet()
+        val out = ArrayList<IntRange>()
+        var start: Int? = null
+        var prev: Int? = null
+        for (h in hot) {
+            if (start == null) { start = h; prev = h } else if (h == prev!! + 1) { prev = h } else {
+                out.add(start!!..prev!!); start = h; prev = h
+            }
+        }
+        if (start != null) out.add(start!!..prev!!)
+        return out
+    }
 }
 
 /** One species' best score on one day, and the local hour (0-23) it peaks. */
@@ -209,7 +252,77 @@ object WeatherRepository {
             moonName = moon.phaseName,
             sunrise = sunrise,
             sunset = sunset,
+            timing = computeDayTiming(times, temps, pressures, winds, clouds, date, sunrise, sunset, conditions),
         )
+    }
+
+    /** Parse "…T06:07" into a fractional hour (6.117), or null. */
+    private fun isoHour(iso: String?): Double? {
+        if (iso == null || iso.length < 16) return null
+        return runCatching {
+            iso.substring(11, 13).toInt() + iso.substring(14, 16).toInt() / 60.0
+        }.getOrNull()
+    }
+
+    /**
+     * Build today's hour-by-hour timing: for each hour of [date], score every
+     * species from that hour's weather times its time-of-day activity, and average
+     * per side. The day-level per-side score comes from [current] conditions (no
+     * time modifier) — "how good is today," separate from "when today."
+     */
+    private fun computeDayTiming(
+        times: org.json.JSONArray,
+        temps: org.json.JSONArray,
+        pressures: org.json.JSONArray,
+        winds: org.json.JSONArray,
+        clouds: org.json.JSONArray,
+        date: LocalDate,
+        sunriseIso: String?,
+        sunsetIso: String?,
+        current: Conditions,
+    ): DayTiming? {
+        val srH = isoHour(sunriseIso) ?: return null
+        val ssH = isoHour(sunsetIso) ?: return null
+        val waterF = SEBAGO_WATER_F.getValue(date.monthValue).toDouble()
+        val moonIllum = moonInfo(date).illum
+        val hours = ArrayList<HourScore>()
+        for (idx in 0 until times.length()) {
+            val t = times.getString(idx)
+            if (t.take(10) != date.toString()) continue
+            val h = t.substring(11, 13).toIntOrNull() ?: continue
+            val i6 = maxOf(0, idx - 6)
+            val end = minOf(idx + 24, temps.length())
+            var coldest = temps.getDouble(idx)
+            for (k in idx until end) coldest = minOf(coldest, temps.getDouble(k))
+            val c = Conditions(
+                airF = roundTo(temps.getDouble(idx), 1.0),
+                waterF = waterF,
+                windMph = roundTo(winds.getDouble(idx), 1.0),
+                cloudPct = roundTo(clouds.getDouble(idx), 5.0),
+                pressureInHg = roundTo(pressures.getDouble(idx) * HPA_TO_INHG, 0.01),
+                pressureTrendInHg =
+                    roundTo((pressures.getDouble(idx) - pressures.getDouble(i6)) * HPA_TO_INHG, 0.01),
+                tempDropNext24hF = roundTo(temps.getDouble(idx) - coldest, 1.0),
+                moonIllum = moonIllum,
+            )
+            var huntSum = 0.0; var huntN = 0; var fishSum = 0.0; var fishN = 0
+            for (sp in SPECIES) {
+                val act = activityMultiplier(timeOfDayActivity(h.toDouble(), srH, ssH, sp.chronotype))
+                val s = score(sp, c) * act
+                if (sp.side == Side.HUNT) { huntSum += s; huntN++ } else { fishSum += s; fishN++ }
+            }
+            hours.add(
+                HourScore(
+                    h,
+                    if (huntN > 0) (huntSum / huntN * 100).roundToInt() else 0,
+                    if (fishN > 0) (fishSum / fishN * 100).roundToInt() else 0,
+                ),
+            )
+        }
+        if (hours.isEmpty()) return null
+        val huntToday = (SPECIES.filter { it.side == Side.HUNT }.map { score(it, current) }.average() * 100).roundToInt()
+        val fishToday = (SPECIES.filter { it.side == Side.FISH }.map { score(it, current) }.average() * 100).roundToInt()
+        return DayTiming(hours.sortedBy { it.hour }, srH, ssH, huntToday, fishToday)
     }
 
     private fun outlookUrl(place: Place, days: Int): String =

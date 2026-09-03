@@ -28,6 +28,8 @@ data class Species(
     val tempSpec: TempSpec,
     val wind: WindBand,
     val moonMode: MoonMode,
+    /** When it's most active through the day; drives the "best times today" curve. */
+    val chronotype: Chronotype = Chronotype.CREPUSCULAR,
 )
 
 /**
@@ -84,11 +86,13 @@ val SPECIES: List<Species> = listOf(
         "Salmon / togue / brookie", Side.FISH,
         Weights(temp = .42, trend = .28, range = .10, front = .10, wind = .05, cloud = .05, moon = 0.0),
         TempSpec.Coldwater, WindBand(0.0, 10.0, 22.0), MoonMode.NONE,
+        chronotype = Chronotype.LOW_LIGHT,
     ),
     Species(
         "Walleye", Side.FISH,
         Weights(temp = .18, trend = .18, range = .07, front = .08, wind = .22, cloud = .22, moon = .05),
         TempSpec.Band(ideal = 68.0, spread = 18.0), WindBand(6.0, 16.0, 30.0), MoonMode.NEWFULL,
+        chronotype = Chronotype.LOW_LIGHT,
     ),
 )
 
