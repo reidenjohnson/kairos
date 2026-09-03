@@ -234,17 +234,18 @@ private fun ScoreChart(
         }
         exp.forEach { drawCircle(expectedColor, 4f, Offset(xOf(it.date), yOf(it.bestPercent))) }
 
-        // Actual dots (faint connecting line)
+        // Actual line + dots — drawn solid and as thick as the expected line so
+        // it reads just as clearly, with slightly larger dots on top.
         val act = actual.sortedBy { it.date }
         for (i in 0 until act.size - 1) {
             drawLine(
-                actualColor.copy(alpha = 0.35f),
+                actualColor,
                 Offset(xOf(act[i].date), yOf(act[i].percent)),
                 Offset(xOf(act[i + 1].date), yOf(act[i + 1].percent)),
-                strokeWidth = 2f,
+                strokeWidth = 4f,
             )
         }
-        act.forEach { drawCircle(actualColor, 6f, Offset(xOf(it.date), yOf(it.percent))) }
+        act.forEach { drawCircle(actualColor, 7f, Offset(xOf(it.date), yOf(it.percent))) }
 
         // X labels: start (left), end (right), "today" under its marker
         val baseline = size.height - 5.dp.toPx()
