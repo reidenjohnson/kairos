@@ -1,22 +1,21 @@
 package com.kairos.ui
 
-import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.kairos.R
 import com.kairos.engine.Rating
 import java.time.Instant
 import java.time.LocalDate
@@ -73,28 +72,21 @@ private val MONTHS = arrayOf(
 internal fun monthDay(date: LocalDate): String = "${MONTHS[date.monthValue - 1]} ${date.dayOfMonth}"
 
 /**
- * The Kairos brand mark: an arrow whose shaft curls into a fishhook — one glyph
- * for both sides of the app (the "hooked arrow" lead concept from the redesign).
+ * The Kairos brand mark: the compound-bow "K" drawn with a nocked arrow. Rendered from
+ * the exported logo asset (white on transparent) and tinted so it reads on any surface.
  */
 @Composable
-internal fun KairosMark(size: Dp = 24.dp, color: Color = KairosColors.OnSeg) {
-    Canvas(Modifier.size(size)) {
-        val w = this.size.width
-        val stroke = Stroke(width = w * 0.11f, cap = StrokeCap.Round, join = StrokeJoin.Round)
-        // Shaft that curves into a hook at the bottom.
-        val body = Path().apply {
-            moveTo(w * 0.55f, w * 0.14f)
-            lineTo(w * 0.55f, w * 0.60f)
-            quadraticBezierTo(w * 0.55f, w * 0.84f, w * 0.34f, w * 0.84f)
-            quadraticBezierTo(w * 0.20f, w * 0.84f, w * 0.26f, w * 0.68f)
-        }
-        drawPath(body, color, style = stroke)
-        // Arrowhead at the top.
-        val head = Path().apply {
-            moveTo(w * 0.42f, w * 0.28f)
-            lineTo(w * 0.55f, w * 0.13f)
-            lineTo(w * 0.68f, w * 0.28f)
-        }
-        drawPath(head, color, style = stroke)
-    }
+internal fun KairosMark(
+    size: Dp = 24.dp,
+    color: Color = KairosColors.OnSeg,
+    modifier: Modifier = Modifier,
+) {
+    // The asset is tight-cropped, so sizing by height keeps the mark's true aspect;
+    // the caller frames it to match the app-icon spacing (mark ~43% of the tile).
+    Image(
+        painter = painterResource(R.drawable.logo_mark_white),
+        contentDescription = "Kairos",
+        colorFilter = ColorFilter.tint(color),
+        modifier = modifier.height(size),
+    )
 }

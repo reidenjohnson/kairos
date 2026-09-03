@@ -10,7 +10,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
@@ -252,17 +254,17 @@ private fun DrawerContent(
         Column(Modifier.padding(horizontal = 20.dp)) {
             Box(
                 modifier = Modifier
-                    .height(44.dp)
+                    .size(48.dp)
                     .background(
                         androidx.compose.ui.graphics.Brush.linearGradient(
                             listOf(Color(0xFF2E5E4E), Color(0xFF3B9E6E)),
                         ),
                         RoundedCornerShape(12.dp),
-                    )
-                    .padding(horizontal = 12.dp),
+                    ),
                 contentAlignment = androidx.compose.ui.Alignment.Center,
             ) {
-                KairosMark()
+                // Same spacing as the launcher icon: mark ~43% of the tile, nudged right.
+                KairosMark(size = 20.dp, modifier = Modifier.offset(x = 2.dp))
             }
             Spacer(Modifier.height(10.dp))
             Text("Kairos", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
