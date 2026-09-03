@@ -80,10 +80,15 @@ sealed interface UiState {
     data class Error(val message: String) : UiState
 }
 
-private enum class Dest { TODAY, SEASONS, WEEKLY }
+private enum class Dest { TODAY, SEASONS, WEEKLY, DETAIL }
 
-/** One place in the app. [side] applies to TODAY; [seasonFocus] to SEASONS. */
-private data class NavEntry(val dest: Dest, val side: Side? = null, val seasonFocus: String? = null)
+/** One place in the app. [side] applies to TODAY; [seasonFocus] to SEASONS; [detailSpecies] to DETAIL. */
+private data class NavEntry(
+    val dest: Dest,
+    val side: Side? = null,
+    val seasonFocus: String? = null,
+    val detailSpecies: String? = null,
+)
 
 /**
  * App entry: owns location + forecast + weekly outlook + navigation, behind a
@@ -210,6 +215,7 @@ fun KairosApp(onToggleTheme: (Boolean) -> Unit = {}) {
                 }
                 Dest.SEASONS -> "Seasons"
                 Dest.WEEKLY -> "Weekly outlook"
+                Dest.DETAIL -> current.detailSpecies ?: "Details"
             }
             Scaffold(
                 containerColor = KairosColors.Bg,
@@ -222,7 +228,7 @@ fun KairosApp(onToggleTheme: (Boolean) -> Unit = {}) {
                             }
                         },
                         actions = {
-                            if (dest != Dest.SEASONS) {
+                            if (dest != Dest.SEASONS && dest != Dest.DETAIL) {
                                 IconButton(onClick = { reloadKey++ }) {
                                     Icon(Icons.Filled.Refresh, contentDescription = "Refresh")
                                 }
@@ -245,12 +251,19 @@ fun KairosApp(onToggleTheme: (Boolean) -> Unit = {}) {
                             refreshing = refreshing,
                             onRefresh = { reloadKey++ },
                             onSelectSide = { current = current.copy(side = it) },
-                            onOpenSeason = { species ->
-                                goTo(NavEntry(Dest.SEASONS, seasonFocus = species))
+                            onOpenDetail = { species ->
+                                goTo(NavEntry(Dest.DETAIL, detailSpecies = species))
                             },
                         )
                         Dest.SEASONS -> SeasonsScreen(focusSpecies = current.seasonFocus)
                         Dest.WEEKLY -> TrendsScreen(state = state, outlook = outlook)
+                        Dest.DETAIL -> DetailScreen(
+                            state = state,
+                            speciesName = current.detailSpecies.orEmpty(),
+                            onOpenSeason = { species ->
+                                goTo(NavEntry(Dest.SEASONS, seasonFocus = species))
+                            },
+                        )
                     }
                 }
             }

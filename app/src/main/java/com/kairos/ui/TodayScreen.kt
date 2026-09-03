@@ -59,7 +59,7 @@ fun TodayScreen(
     refreshing: Boolean,
     onRefresh: () -> Unit,
     onSelectSide: (Side?) -> Unit,
-    onOpenSeason: (String) -> Unit,
+    onOpenDetail: (String) -> Unit,
 ) {
     when (state) {
         is UiState.Loading -> Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
@@ -69,7 +69,7 @@ fun TodayScreen(
             onRefresh = onRefresh,
             modifier = Modifier.fillMaxSize(),
         ) {
-            ForecastList(state, sideFilter, refreshing, onSelectSide, onOpenSeason)
+            ForecastList(state, sideFilter, refreshing, onSelectSide, onOpenDetail)
         }
     }
 }
@@ -98,7 +98,7 @@ private fun ForecastList(
     sideFilter: Side?,
     refreshing: Boolean,
     onSelectSide: (Side?) -> Unit,
-    onOpenSeason: (String) -> Unit,
+    onOpenDetail: (String) -> Unit,
 ) {
     val forecast = ready.forecast
     val c = forecast.conditions
@@ -126,11 +126,11 @@ private fun ForecastList(
         }
         item { SortRow(openCount) }
         items(primary) { row ->
-            SpeciesCard(row, c, emphasized = row == primary.firstOrNull(), onOpenSeason = onOpenSeason)
+            SpeciesCard(row, c, emphasized = row == primary.firstOrNull(), onOpenDetail = onOpenDetail)
         }
         if (secondary.isNotEmpty()) {
             item { GroupDivider("Out of season · ${secondary.size}") }
-            items(secondary) { row -> OutOfSeasonRow(row, onOpenSeason) }
+            items(secondary) { row -> OutOfSeasonRow(row, onOpenDetail) }
         }
         item { Spacer(Modifier.height(20.dp)) }
     }
@@ -265,12 +265,12 @@ private fun SortRow(openCount: Int) {
 }
 
 @Composable
-private fun SpeciesCard(row: SpeciesScore, c: Conditions, emphasized: Boolean, onOpenSeason: (String) -> Unit) {
+private fun SpeciesCard(row: SpeciesScore, c: Conditions, emphasized: Boolean, onOpenDetail: (String) -> Unit) {
     val status = seasonsFor(row.species.name)?.let { seasonStatus(it, today) }
     val base = Modifier
         .fillMaxWidth()
         .clip(RoundedCornerShape(18.dp))
-        .clickable { onOpenSeason(row.species.name) }
+        .clickable { onOpenDetail(row.species.name) }
     val styled = if (emphasized) {
         base
             .background(Brush.verticalGradient(listOf(KairosColors.CardTop, KairosColors.CardBottom)))
@@ -351,14 +351,14 @@ private fun RatingPill(rating: Rating) {
 }
 
 @Composable
-private fun OutOfSeasonRow(row: SpeciesScore, onOpenSeason: (String) -> Unit) {
+private fun OutOfSeasonRow(row: SpeciesScore, onOpenDetail: (String) -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(KairosColors.Surface.copy(alpha = 0.5f))
             .border(1.dp, KairosColors.Line, RoundedCornerShape(14.dp))
-            .clickable { onOpenSeason(row.species.name) }
+            .clickable { onOpenDetail(row.species.name) }
             .padding(horizontal = 16.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
