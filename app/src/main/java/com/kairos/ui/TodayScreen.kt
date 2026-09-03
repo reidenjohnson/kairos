@@ -390,7 +390,8 @@ private fun OfflineBanner(savedAtMillis: Long) {
             .padding(12.dp),
     ) {
         Text(
-            "Offline — showing the last forecast (${ageText(savedAtMillis)}). Refresh when you have signal.",
+            "Couldn't update — showing the last forecast (${ageText(savedAtMillis)}). " +
+                "The weather service may be busy; pull down to try again.",
             style = MaterialTheme.typography.bodySmall,
             color = KairosColors.Text,
         )

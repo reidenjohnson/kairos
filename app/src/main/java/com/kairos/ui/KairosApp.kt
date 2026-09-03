@@ -154,6 +154,7 @@ fun KairosApp() {
                     withContext(Dispatchers.IO) { WeatherRepository.fetchOutlook(place) }
                 }.getOrNull()
             } catch (e: Exception) {
+                android.util.Log.w("KairosFetch", "forecast refresh failed", e)
                 val cached = ForecastCache.load(context)
                 state = if (cached != null) {
                     UiState.Ready(cached.forecast, live = false, savedAtMillis = cached.savedAtMillis)

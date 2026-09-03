@@ -148,23 +148,53 @@ object WeatherRepository {
      * to the given coordinates, so date/month come out right anywhere.
      */
     fun fetch(place: Place = Location.SEBAGO): Forecast {
-        val json = httpGet(buildUrl(place))
-        return parse(JSONObject(json), place.label)
+        return parse(JSONObject(httpGetJson(buildUrl(place))), place.label)
     }
 
     private fun httpGet(url: String): String {
         val conn = (URL(url).openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
-            connectTimeout = 20_000
-            readTimeout = 20_000
+            connectTimeout = 15_000
+            readTimeout = 15_000
         }
         try {
             val code = conn.responseCode
+            val stream = if (code in 200..299) conn.inputStream else conn.errorStream
+            val body = stream?.bufferedReader()?.use { it.readText() } ?: ""
             if (code !in 200..299) error("Open-Meteo returned HTTP $code")
-            return conn.inputStream.bufferedReader().use { it.readText() }
+            return body
         } finally {
             conn.disconnect()
         }
+    }
+
+    /**
+     * GET expecting a JSON object, with retries. Open-Meteo's free tier
+     * intermittently returns HTTP 200 with a non-JSON body ("Unexpected error
+     * while streaming data: timeoutReached") or a JSON error object
+     * ({"error":true,"reason":"The service is overloaded"}). Both are transient,
+     * so treat them as failures and retry with backoff before giving up (the
+     * caller then falls back to the cached forecast).
+     */
+    private fun httpGetJson(url: String, attempts: Int = 3): String {
+        var last: Exception? = null
+        for (i in 0 until attempts) {
+            try {
+                val body = httpGet(url).trimStart()
+                if (!body.startsWith("{")) {
+                    error("Weather service busy — please try again")
+                }
+                if (Regex("\"error\"\\s*:\\s*true").containsMatchIn(body)) {
+                    val reason = Regex("\"reason\"\\s*:\\s*\"([^\"]*)\"").find(body)?.groupValues?.get(1)
+                    error(reason ?: "Weather service unavailable")
+                }
+                return body
+            } catch (e: Exception) {
+                last = e
+                if (i < attempts - 1) Thread.sleep(600L * (i + 1))
+            }
+        }
+        throw last ?: java.io.IOException("Weather request failed")
     }
 
     /** Visible for testing: turn an Open-Meteo response into a [Forecast]. */
@@ -252,7 +282,10 @@ object WeatherRepository {
             moonName = moon.phaseName,
             sunrise = sunrise,
             sunset = sunset,
-            timing = computeDayTiming(times, temps, pressures, winds, clouds, date, sunrise, sunset, conditions),
+            // Timing is a bonus layer — never let a glitch in it break the forecast.
+            timing = runCatching {
+                computeDayTiming(times, temps, pressures, winds, clouds, date, sunrise, sunset, conditions)
+            }.getOrNull(),
         )
     }
 
@@ -340,7 +373,7 @@ object WeatherRepository {
      * live score.
      */
     fun fetchOutlook(place: Place = Location.SEBAGO, days: Int = 7): Outlook =
-        parseOutlook(JSONObject(httpGet(outlookUrl(place, days))), place.label)
+        parseOutlook(JSONObject(httpGetJson(outlookUrl(place, days))), place.label)
 
     /** Visible for testing: turn an hourly Open-Meteo response into an [Outlook]. */
     internal fun parseOutlook(root: JSONObject, placeLabel: String): Outlook {
