@@ -362,7 +362,7 @@ object WeatherRepository {
         "https://api.open-meteo.com/v1/forecast" +
             "?latitude=${place.lat}&longitude=${place.lon}" +
             "&hourly=temperature_2m,surface_pressure,wind_speed_10m,cloud_cover" +
-            "&timezone=auto&past_days=1&forecast_days=$days" +
+            "&timezone=auto&past_days=7&forecast_days=$days" +
             "&temperature_unit=fahrenheit&wind_speed_unit=mph"
 
     /**
@@ -385,14 +385,14 @@ object WeatherRepository {
         val clouds = hourly.getJSONArray("cloud_cover")
         val n = times.length()
 
-        val today = LocalDate.now()
-        // speciesName -> (date -> best DayScore so far)
+        // speciesName -> (date -> best DayScore so far). Spans the past week (from
+        // past_days) through the forecast, so the Trends "expected" curve covers the
+        // same days as the recorded "actual" and the two overlay instead of just meeting.
         val best = LinkedHashMap<String, LinkedHashMap<LocalDate, DayScore>>()
         val sideOf = HashMap<String, Side>()
 
         for (i in 0 until n) {
             val date = LocalDate.parse(times.getString(i).take(10))
-            if (date.isBefore(today)) continue // outlook is forward-looking
             val hour = times.getString(i).substring(11, 13).toIntOrNull() ?: 12
 
             val i6 = maxOf(0, i - 6)

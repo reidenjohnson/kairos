@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.MaterialTheme
@@ -63,8 +64,8 @@ fun TrendsScreen(state: UiState, outlook: Outlook?) {
         Spacer(Modifier.height(8.dp))
         Text("Score history & outlook", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         Text(
-            "The line is the forecast's best score for each day ahead. Dots are what it actually " +
-                "scored on the days you checked — logged automatically.",
+            "The line is the model's best score for each day — the past week and the days ahead. " +
+                "Dots are what you saw on the days you actually checked, logged automatically.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -100,7 +101,10 @@ fun TrendsScreen(state: UiState, outlook: Outlook?) {
         val todayColor = MaterialTheme.colorScheme.error
         val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
 
-        Card(Modifier.fillMaxWidth()) {
+        Card(
+            Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = KairosColors.Surface),
+        ) {
             Column(Modifier.padding(14.dp)) {
                 Legend(expectedColor, actualColor)
                 Spacer(Modifier.height(10.dp))
@@ -118,7 +122,7 @@ fun TrendsScreen(state: UiState, outlook: Outlook?) {
                     }
                 } else {
                     Text(
-                        "Outlook: ${expected.size} days ahead · logged: ${actual.size} " +
+                        "${expected.size} days modeled · logged: ${actual.size} " +
                             if (actual.size == 1) "day" else "days",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
