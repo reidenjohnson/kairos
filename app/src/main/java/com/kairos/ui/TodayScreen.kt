@@ -120,6 +120,7 @@ private fun ForecastList(
         item { Header(forecast, ready.savedAtMillis, ready.live) }
         item { ConditionChips(forecast) }
         item { SegmentedControl(sideFilter, onSelectSide) }
+        forecast.timing?.let { t -> item { TimingCard(t, sideFilter) } }
         if (sideFilter != Side.FISH && forecast.legalShootingHours != null) {
             item { LegalLightCard(forecast) }
         }
