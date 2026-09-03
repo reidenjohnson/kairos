@@ -9,6 +9,7 @@ import androidx.wear.protolayout.DimensionBuilders.expand
 import androidx.wear.protolayout.LayoutElementBuilders
 import androidx.wear.protolayout.LayoutElementBuilders.Box
 import androidx.wear.protolayout.LayoutElementBuilders.Column
+import androidx.wear.protolayout.LayoutElementBuilders.Image
 import androidx.wear.protolayout.LayoutElementBuilders.LayoutElement
 import androidx.wear.protolayout.LayoutElementBuilders.Row
 import androidx.wear.protolayout.LayoutElementBuilders.Spacer
@@ -23,6 +24,7 @@ import androidx.wear.tiles.TileService
 import com.google.common.util.concurrent.ListenableFuture
 import com.kairos.data.Location
 import com.kairos.data.WeatherRepository
+import com.kairos.wear.R
 import com.kairos.engine.Side
 import com.kairos.engine.SpeciesScore
 import com.kairos.engine.scoreAll
@@ -79,7 +81,19 @@ class KairosTileService : TileService() {
     ): ListenableFuture<ResourceBuilders.Resources> =
         CallbackToFutureAdapter.getFuture { completer ->
             completer.set(
-                ResourceBuilders.Resources.Builder().setVersion(RESOURCES_VERSION).build(),
+                ResourceBuilders.Resources.Builder()
+                    .setVersion(RESOURCES_VERSION)
+                    .addIdToImageMapping(
+                        MARK_ID,
+                        ResourceBuilders.ImageResource.Builder()
+                            .setAndroidResourceByResId(
+                                ResourceBuilders.AndroidImageResourceByResId.Builder()
+                                    .setResourceId(R.drawable.kairos_mark)
+                                    .build(),
+                            )
+                            .build(),
+                    )
+                    .build(),
             )
             "KairosTileService.onTileResourcesRequest"
         }
@@ -95,9 +109,10 @@ class KairosTileService : TileService() {
             .setWidth(expand())
             .setHorizontalAlignment(LayoutElementBuilders.HORIZONTAL_ALIGN_CENTER)
             .addContent(
-                Text.Builder(context, "KAIROS")
-                    .setTypography(Typography.TYPOGRAPHY_TITLE3)
-                    .setColor(argb(ACCENT))
+                Image.Builder()
+                    .setResourceId(MARK_ID)
+                    .setWidth(dp(24f))
+                    .setHeight(dp(28f))
                     .build(),
             )
             .addContent(Spacer.Builder().setHeight(dp(16f)).build())
@@ -196,7 +211,8 @@ class KairosTileService : TileService() {
     }
 
     private companion object {
-        const val RESOURCES_VERSION = "1"
+        const val RESOURCES_VERSION = "2"
+        const val MARK_ID = "kairos_mark"
         const val REFRESH_MILLIS = 30L * 60L * 1000L
         const val ACCENT = 0xFF8FC7B3.toInt()
         const val WHITE = 0xFFFFFFFF.toInt()
