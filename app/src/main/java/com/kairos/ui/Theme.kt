@@ -131,6 +131,14 @@ private val DarkScheme = darkColorScheme(
     onSurface = DarkPalette.text,
     surfaceVariant = DarkPalette.surface2,
     onSurfaceVariant = DarkPalette.dim,
+    // Container roles + tint kept in the pine family so bare Cards never pull
+    // in Material's default purple-tinted surfaces.
+    surfaceTint = DarkPalette.pine,
+    surfaceContainerLowest = Color(0xFF0B110E),
+    surfaceContainerLow = DarkPalette.surface,
+    surfaceContainer = Color(0xFF1A231E),
+    surfaceContainerHigh = DarkPalette.surface2,
+    surfaceContainerHighest = Color(0xFF243029),
     outline = DarkPalette.faint,
     outlineVariant = DarkPalette.line,
     error = DarkPalette.error,
@@ -148,6 +156,14 @@ private val LightScheme = lightColorScheme(
     onSurface = LightPalette.text,
     surfaceVariant = LightPalette.surface2,
     onSurfaceVariant = LightPalette.dim,
+    // Container roles + tint kept neutral/pine so bare Cards never pull in
+    // Material's default purple-tinted surfaces (the "light purple" box).
+    surfaceTint = LightPalette.pine,
+    surfaceContainerLowest = Color(0xFFFFFFFF),
+    surfaceContainerLow = Color(0xFFF7F9F6),
+    surfaceContainer = LightPalette.surface,
+    surfaceContainerHigh = LightPalette.surface2,
+    surfaceContainerHighest = Color(0xFFE3E8E3),
     outline = LightPalette.faint,
     outlineVariant = LightPalette.line,
     error = LightPalette.error,
