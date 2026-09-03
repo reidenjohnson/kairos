@@ -109,10 +109,22 @@ class KairosTileService : TileService() {
             .setWidth(expand())
             .setHorizontalAlignment(LayoutElementBuilders.HORIZONTAL_ALIGN_CENTER)
             .addContent(
+                // The mark is left-weighted (solid limb vs thin arrow), so a small
+                // start pad nudges it right to sit optically centered on the screen.
                 Image.Builder()
                     .setResourceId(MARK_ID)
                     .setWidth(dp(24f))
                     .setHeight(dp(28f))
+                    .setModifiers(
+                        ModifiersBuilders.Modifiers.Builder()
+                            .setPadding(
+                                ModifiersBuilders.Padding.Builder()
+                                    .setStart(dp(6f))
+                                    .setEnd(dp(0f))
+                                    .build(),
+                            )
+                            .build(),
+                    )
                     .build(),
             )
             .addContent(Spacer.Builder().setHeight(dp(16f)).build())
@@ -211,7 +223,7 @@ class KairosTileService : TileService() {
     }
 
     private companion object {
-        const val RESOURCES_VERSION = "2"
+        const val RESOURCES_VERSION = "3"
         const val MARK_ID = "kairos_mark"
         const val REFRESH_MILLIS = 30L * 60L * 1000L
         const val ACCENT = 0xFF8FC7B3.toInt()
