@@ -13,4 +13,11 @@
         <item name="android:statusBarColor">?attr/colorPrimaryVariant</item>
         <!-- Customize your theme here. -->
     </style>
+
+    <!-- Launch splash (Android 12+ splash screen, backported via core-splashscreen). -->
+    <style name="Theme.Kairos.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/kairos_splash_bg</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_mark</item>
+        <item name="postSplashScreenTheme">@style/Theme.Kairos</item>
+    </style>
 </resources>
