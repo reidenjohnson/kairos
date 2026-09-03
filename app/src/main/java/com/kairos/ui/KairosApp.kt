@@ -7,18 +7,22 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.Forest
 import androidx.compose.material.icons.outlined.ShowChart
 import androidx.compose.material.icons.outlined.WaterDrop
@@ -32,6 +36,7 @@ import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -39,6 +44,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
@@ -49,6 +55,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.kairos.data.Forecast
@@ -85,9 +93,19 @@ private data class NavEntry(val dest: Dest, val side: Side? = null, val seasonFo
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun KairosApp() {
+fun KairosApp(onToggleTheme: (Boolean) -> Unit = {}) {
     KairosTheme {
         val context = LocalContext.current
+        // Keep the system-bar icons legible: dark icons on the light theme, light on dark.
+        val view = LocalView.current
+        val darkTheme = KairosColors.dark
+        SideEffect {
+            val window = (view.context as android.app.Activity).window
+            WindowCompat.getInsetsController(window, view).apply {
+                isAppearanceLightStatusBars = !darkTheme
+                isAppearanceLightNavigationBars = !darkTheme
+            }
+        }
         val scope = rememberCoroutineScope()
         val drawerState = rememberDrawerState(DrawerValue.Closed)
 
@@ -180,6 +198,7 @@ fun KairosApp() {
                         goTo(NavEntry(d, if (d == Dest.TODAY) s else null))
                         scope.launch { drawerState.close() }
                     },
+                    onToggleTheme = onToggleTheme,
                 )
             },
         ) {
@@ -245,6 +264,7 @@ private fun DrawerContent(
     current: Dest,
     currentSide: Side?,
     onSelect: (Dest, Side?) -> Unit,
+    onToggleTheme: (Boolean) -> Unit,
 ) {
     ModalDrawerSheet(
         drawerContainerColor = KairosColors.Surface,
@@ -286,6 +306,24 @@ private fun DrawerContent(
         }
         DrawerItem("Weekly outlook", Icons.Outlined.ShowChart, current == Dest.WEEKLY) {
             onSelect(Dest.WEEKLY, null)
+        }
+
+        Spacer(Modifier.weight(1f))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 28.dp, vertical = 20.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Outlined.DarkMode, contentDescription = null, tint = KairosColors.Dim)
+            Spacer(Modifier.width(16.dp))
+            Text(
+                "Dark mode",
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodyLarge,
+                color = KairosColors.Text,
+            )
+            Switch(checked = KairosColors.dark, onCheckedChange = onToggleTheme)
         }
     }
 }
