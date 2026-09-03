@@ -20,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -30,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -93,6 +95,14 @@ fun DetailScreen(state: UiState, speciesName: String, onOpenSeason: (String) -> 
         if (species.side == Side.HUNT && forecast.legalShootingHours != null) {
             Spacer(Modifier.height(16.dp))
             LegalLightLine(forecast)
+        }
+
+        val citations = citationsFor(speciesName)
+        if (citations.isNotEmpty()) {
+            Spacer(Modifier.height(20.dp))
+            SectionLabel("SOURCES · WHY THIS SCORE")
+            Spacer(Modifier.height(8.dp))
+            SourcesCard(citations, species.side == Side.FISH)
         }
 
         Spacer(Modifier.height(16.dp))
@@ -259,6 +269,50 @@ private fun LegalLightLine(f: Forecast) {
     ) {
         Text("Legal shooting hours", style = MaterialTheme.typography.bodyMedium, color = KairosColors.Dim, modifier = Modifier.weight(1f))
         Text("${fmt.format(hours.first)} – ${fmt.format(hours.second)}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = KairosColors.Text)
+    }
+}
+
+@Composable
+private fun SourcesCard(citations: List<Citation>, isFish: Boolean) {
+    val uriHandler = LocalUriHandler.current
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(KairosColors.Surface)
+            .border(1.dp, KairosColors.Line, RoundedCornerShape(18.dp))
+            .padding(vertical = 4.dp),
+    ) {
+        citations.forEachIndexed { i, cite ->
+            if (i > 0) Box(Modifier.padding(horizontal = 16.dp).fillMaxWidth().height(1.dp).background(KairosColors.Line))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { uriHandler.openUri(cite.url) }
+                    .padding(horizontal = 16.dp, vertical = 13.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    cite.label,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = KairosColors.Text,
+                    lineHeight = 18.sp,
+                    modifier = Modifier.weight(1f),
+                )
+                Spacer(Modifier.width(10.dp))
+                Icon(Icons.Filled.OpenInNew, contentDescription = "Open", tint = KairosColors.Water, modifier = Modifier.size(16.dp))
+            }
+        }
+    }
+    if (isFish) {
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "Note: water temp is a monthly Sebago estimate, not a live reading — the free " +
+                "weather feed only gives air temp.",
+            style = MaterialTheme.typography.labelSmall,
+            color = KairosColors.Faint,
+            lineHeight = 15.sp,
+        )
     }
 }
 
