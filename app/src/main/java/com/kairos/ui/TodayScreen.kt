@@ -145,6 +145,13 @@ private fun Header(f: Forecast, savedAtMillis: Long, live: Boolean) {
             style = MaterialTheme.typography.bodySmall,
             color = KairosColors.Faint,
         )
+        if (f.source == "NWS") {
+            Text(
+                "Backup source (NWS) — Open-Meteo unavailable; no timing curve",
+                style = MaterialTheme.typography.bodySmall,
+                color = KairosColors.Fair,
+            )
+        }
     }
 }
 

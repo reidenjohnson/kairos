@@ -33,6 +33,7 @@ object ForecastCache {
             .put("moonIllum", c.moonIllum)
             .put("sunrise", f.sunrise)
             .put("sunset", f.sunset)
+            .put("source", f.source)
         prefs(context).edit().putString(KEY, o.toString()).apply()
     }
 
@@ -64,6 +65,7 @@ object ForecastCache {
                 moonName = o.getString("moonName"),
                 sunrise = o.optString("sunrise", null),
                 sunset = o.optString("sunset", null),
+                source = o.optString("source", "Open-Meteo"),
             )
             Cached(forecast, o.getLong("savedAt"))
         } catch (e: Exception) {
