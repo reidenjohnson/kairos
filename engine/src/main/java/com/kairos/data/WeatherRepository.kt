@@ -46,6 +46,8 @@ data class Forecast(
     val sunset: String? = null,
     /** Today's hour-by-hour "best times" timing (null if not computed, e.g. from cache). */
     val timing: DayTiming? = null,
+    /** Which weather service produced this forecast — "Open-Meteo" (primary) or "NWS" (backup). */
+    val source: String = "Open-Meteo",
 ) {
     val trendWord: String
         get() = when {
@@ -148,7 +150,20 @@ object WeatherRepository {
      * to the given coordinates, so date/month come out right anywhere.
      */
     fun fetch(place: Place = Location.SEBAGO): Forecast {
-        return parse(JSONObject(httpGetJson(buildUrl(place))), place.label)
+        return try {
+            parse(JSONObject(httpGetJson(buildUrl(place))), place.label)
+        } catch (primary: Exception) {
+            // Open-Meteo's free tier goes down for minutes at a time. Rather than
+            // strand the user on a stale cache, fall back to the US National
+            // Weather Service (a slightly reduced but honest forecast — see
+            // NwsWeather). If that also fails, surface the original error so the
+            // caller shows the cached forecast.
+            try {
+                NwsWeather.fetch(place)
+            } catch (backup: Exception) {
+                throw primary
+            }
+        }
     }
 
     private fun httpGet(url: String): String {

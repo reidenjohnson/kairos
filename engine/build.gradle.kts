@@ -22,4 +22,8 @@ android {
 
 dependencies {
     testImplementation(libs.junit)
+    // The android.jar used for unit tests ships org.json as empty stubs; pull in
+    // the real implementation so parsing code (WeatherRepository, NwsWeather) can
+    // be tested against captured API responses.
+    testImplementation("org.json:json:20240303")
 }
