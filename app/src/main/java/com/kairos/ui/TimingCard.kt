@@ -53,13 +53,13 @@ fun TimingCard(timing: DayTiming, side: Side?) {
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .background(Brush.verticalGradient(listOf(KairosColors.CardTop, KairosColors.CardBottom)))
+            .background(Brush.verticalGradient(listOf(KairosColors.HeroTop, KairosColors.HeroBottom)))
             .border(1.dp, KairosColors.CardBorder, RoundedCornerShape(18.dp))
             .padding(16.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.labelSmall, color = KairosColors.Pine, letterSpacing = 1.4.sp)
+                Text(title, style = MaterialTheme.typography.labelSmall, color = KairosColors.Water, letterSpacing = 1.4.sp)
                 Spacer(Modifier.height(2.dp))
                 Text(
                     if (windows.isEmpty()) "Steady all day" else "Best: " + windows.joinToString(" · ") { fmtWindow(it) },

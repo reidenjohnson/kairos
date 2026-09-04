@@ -290,7 +290,7 @@ private fun DrawerContent(
                     .size(48.dp)
                     .background(
                         androidx.compose.ui.graphics.Brush.linearGradient(
-                            listOf(Color(0xFF2E5E4E), Color(0xFF3B9E6E)),
+                            listOf(KairosColors.SegTop, KairosColors.SegBottom),
                         ),
                         RoundedCornerShape(12.dp),
                     ),

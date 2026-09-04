@@ -95,11 +95,13 @@ fun TrendsScreen(state: UiState, outlook: Outlook?) {
 
         Spacer(Modifier.height(16.dp))
 
-        val expectedColor = MaterialTheme.colorScheme.primary
-        val actualColor = MaterialTheme.colorScheme.secondary
-        val gridColor = MaterialTheme.colorScheme.surfaceVariant
-        val todayColor = MaterialTheme.colorScheme.error
-        val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+        // Chart-only palette (see ChartColors) — a saturated, colorblind-safe pair
+        // kept separate from the muted brand accents.
+        val expectedColor = ChartColors.Expected
+        val actualColor = ChartColors.Actual
+        val gridColor = ChartColors.Grid
+        val todayColor = ChartColors.Today
+        val labelColor = ChartColors.Label
 
         Card(
             Modifier.fillMaxWidth(),

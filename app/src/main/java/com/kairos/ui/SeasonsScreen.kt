@@ -166,7 +166,7 @@ private fun OpenNowCard(speciesList: List<SpeciesSeasons>, today: LocalDate) {
             .border(1.dp, KairosColors.CardBorder, RoundedCornerShape(16.dp))
             .padding(16.dp),
     ) {
-        Text("OPEN NOW", style = MaterialTheme.typography.labelSmall, color = KairosColors.Pine, letterSpacing = 1.6.sp)
+        Text("OPEN NOW", style = MaterialTheme.typography.labelSmall, color = KairosColors.Water, letterSpacing = 1.6.sp)
         Spacer(Modifier.height(6.dp))
         Text(
             if (open.isEmpty()) "Nothing open today" else open.joinToString(" · ") { it.speciesName },
@@ -272,7 +272,7 @@ private fun GlanceTimeline(speciesList: List<SpeciesSeasons>, today: LocalDate, 
                                 .height(11.dp)
                                 .align(Alignment.CenterStart)
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(if (covers) KairosColors.Prime else KairosColors.Pine.copy(alpha = 0.55f)),
+                                .background(if (covers) KairosColors.Water else KairosColors.Faint.copy(alpha = 0.5f)),
                         )
                     }
                     // Today marker
@@ -385,8 +385,8 @@ private fun SpeciesSeasonSheet(s: SpeciesSeasons, today: LocalDate, onDismiss: (
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = when (status.kind) {
-                    SeasonStatusKind.OPEN -> KairosColors.Prime
-                    SeasonStatusKind.UPCOMING -> KairosColors.Water
+                    SeasonStatusKind.OPEN -> KairosColors.Water
+                    SeasonStatusKind.UPCOMING -> KairosColors.Fair
                     else -> KairosColors.Dim
                 },
             )
@@ -423,7 +423,7 @@ private fun WindowRow(w: SeasonWindow, today: LocalDate) {
                 .width(8.dp)
                 .height(8.dp)
                 .clip(RoundedCornerShape(4.dp))
-                .background(if (covers) KairosColors.Prime else KairosColors.Pine.copy(alpha = 0.55f)),
+                .background(if (covers) KairosColors.Water else KairosColors.Faint.copy(alpha = 0.5f)),
         )
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
@@ -453,8 +453,8 @@ private fun LinkRow(label: String, onClick: () -> Unit) {
 @Composable
 private fun StatusChip(kind: SeasonStatusKind) {
     val (label, color) = when (kind) {
-        SeasonStatusKind.OPEN -> "Open" to KairosColors.Prime
-        SeasonStatusKind.UPCOMING -> "Upcoming" to KairosColors.Water
+        SeasonStatusKind.OPEN -> "Open" to KairosColors.Water
+        SeasonStatusKind.UPCOMING -> "Upcoming" to KairosColors.Fair
         SeasonStatusKind.CLOSED -> "Closed" to KairosColors.Faint
         SeasonStatusKind.NONE -> "No season" to KairosColors.Faint
     }

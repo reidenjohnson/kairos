@@ -37,64 +37,100 @@ private data class Palette(
     val cardTop: Color,
     val cardBottom: Color,
     val cardBorder: Color,
+    // Ambient color grading: the screen wash leans faintly teal at top, fern at
+    // bottom (blue + green in balance); hero cards carry a subtle teal-graded tint
+    // so the app isn't flat white. All kept very low-chroma — accents, not floods.
+    val washTop: Color,
+    val washBottom: Color,
+    val heroTop: Color,
+    val heroBottom: Color,
     val segTop: Color,
     val segBottom: Color,
     val onSeg: Color,
     val error: Color,
 )
 
-// Reiden's brand palette (2026-09-03): a warm-neutral base (White Smoke ↔ Carbon
-// Black) carries the whole app; the five primaries are used sparingly as ACCENTS.
-// Fern = brand/primary; Amber Earth = highlight/CTA + Fair; Dark Teal = secondary
-// (fish/support); Brick = Poor/error. The crisp app green + other chart hues are
-// secondaries reserved for charts (see the chart palette), not general UI. Color
-// is kept minimal — surfaces and chrome stay neutral so the accents read.
+/**
+ * The Kairos brand colors — the ONLY hues used anywhere in the UI. Every palette
+ * role below is one of these, a lightness step of one (for light/dark contrast,
+ * always on the same hue — annotated), or a step of the warm-neutral base ramp.
+ * Nothing is eyeballed off-palette, so the whole app is on-brand by construction.
+ * (Charts use a separate reserved set — see [ChartColors] — the one documented
+ * exception, because two data series need a colorblind-safe pair.)
+ */
+private object Brand {
+    // Warm-neutral base ramp: White Smoke ↔ Carbon Black. Carries every surface,
+    // text, and hairline; steps of it are the only "grays".
+    val Smoke = Color(0xFFF5F5F4)
+    val Carbon = Color(0xFF202321)
+    // Brand primaries — the ONLY accent hues. Target on-screen balance is roughly
+    // green ~40 / teal ~40 / amber ~20, so green (Fern) and teal (water) do most of
+    // the accent work and amber stays a minority highlight; brick is reserved for
+    // negatives. No "crisp" green/red — Fern is the up/Good/Prime green, Brick the
+    // down/Poor red.
+    val Fern = Color(0xFF566E3F)   // primary / Good / Prime / "up" / chrome
+    val Teal = Color(0xFF074552)   // secondary — fish / links / active / timing / "now"
+    val Amber = Color(0xFFDE8521)  // highlight / Fair
+    val Brick = Color(0xFFB23A2E)  // Poor / error / "down"
+}
+
 private val LightPalette = Palette(
-    bg = Color(0xFFF5F5F4),      // White Smoke — the ground
-    bgTop = Color(0xFFF8F8F7),   // barely-lighter, for a near-flat radial wash
-    surface = Color(0xFFFFFFFF), // clean white cards on the smoke ground
-    surface2 = Color(0xFFECECEA),
-    line = Color(0x14202321),    // Carbon @ ~.08
-    text = Color(0xFF202321),    // Carbon Black
-    dim = Color(0xFF5E605B),
-    faint = Color(0xFF93938C),
-    pine = Color(0xFF566E3F),    // Fern — brand/primary accent
-    water = Color(0xFF074552),   // Dark Teal — secondary accent (fish/support)
-    prime = Color(0xFF566E3F),   // Fern — primary emphasis
-    good = Color(0xFF566E3F),    // Fern — Good rating
-    fair = Color(0xFFDE8521),    // Amber Earth — Fair rating / highlight
-    slow = Color(0xFF8B8C84),    // warm gray — out-of-season / no-data
-    cardTop = Color(0xFFFFFFFF), // emphasized card = neutral, thin Fern border
-    cardBottom = Color(0xFFF6F6F4),
-    cardBorder = Color(0x38566E3F), // Fern @ ~.22
-    segTop = Color(0xFF5C7642),  // active nav/segment — Fern gradient
-    segBottom = Color(0xFF445734),
-    onSeg = Color(0xFFF2F4EC),
-    error = Color(0xFFB23A2E),   // Brick — Poor / error
+    bg = Brand.Smoke,            // White Smoke — the ground
+    bgTop = Color(0xFFFAFAF9),   // Smoke +1 step, for a near-flat radial wash
+    surface = Color(0xFFFFFFFF), // white (neutral) cards on the smoke ground
+    surface2 = Color(0xFFEEEEEC), // neutral ramp step
+    line = Color(0x12202321),    // Carbon @ ~.07 — neutral hairline
+    text = Color(0xFF1E201D),    // Carbon Black (neutral)
+    dim = Color(0xFF5E605B),     // neutral ramp
+    faint = Color(0xFF95968F),   // neutral ramp
+    pine = Brand.Fern,           // Fern — brand/primary accent + Good/Prime/"up"
+    water = Color(0xFF167C93),   // Brand.Teal, +2 steps (same hue) for accent legibility
+    prime = Brand.Fern,          // Fern — top tier (no separate crisp green)
+    good = Brand.Fern,           // Fern — Good rating
+    fair = Brand.Amber,          // Amber Earth — Fair rating / highlight
+    slow = Color(0xFF8B8C84),    // neutral warm gray — out-of-season / no-data
+    cardTop = Color(0xFFFFFFFF), // emphasized card = neutral, hairline border
+    cardBottom = Color(0xFFF7F7F5), // neutral ramp step
+    cardBorder = Color(0x14202321), // Carbon @ ~.08 — neutral hairline
+    washTop = Color(0xFFEDF2F3),    // Smoke + a whisper of teal (cool top)
+    washBottom = Color(0xFFF1F3EC), // Smoke + a whisper of fern (warm-green bottom)
+    heroTop = Color(0xFFE9F1F2),    // hero card: faint teal grade …
+    heroBottom = Color(0xFFF6F7F3), // … fading to near-neutral
+    segTop = Color(0xFF5C7642),  // Fern +1 step — active nav/segment gradient (brand moment)
+    segBottom = Color(0xFF445734), // Fern −1 step
+    onSeg = Color(0xFFF3F2EF),   // near-white (neutral) text on the Fern segment
+    error = Brand.Brick,         // Brick — Poor / error / "down"
 )
 
+// Dark theme is a WARM-NEUTRAL carbon — deliberately NOT green-tinted (the earlier
+// green-black surfaces made everything read green). Greens appear only as accents:
+// Fern for chrome (active nav/segments/brand) and Good, crisp green for Prime.
 private val DarkPalette = Palette(
-    bg = Color(0xFF181A17),      // deep carbon ground
-    bgTop = Color(0xFF202321),   // Carbon Black — top of the wash
-    surface = Color(0xFF232622),
-    surface2 = Color(0xFF2C2F2A),
-    line = Color(0x1FF1F1EE),    // near-white @ ~.12
-    text = Color(0xFFF1F1EE),
-    dim = Color(0xFFB2B3AB),
-    faint = Color(0xFF7C7D75),
-    pine = Color(0xFF86A866),    // Fern, lifted for contrast on carbon
-    water = Color(0xFF4F9DB0),   // Dark Teal, lifted
-    prime = Color(0xFF86A866),
-    good = Color(0xFF86A866),
-    fair = Color(0xFFE89A45),    // Amber, lifted
-    slow = Color(0xFF83837C),
-    cardTop = Color(0xFF242722),
-    cardBottom = Color(0xFF1C1F1B),
-    cardBorder = Color(0x4C86A866), // Fern @ ~.30
-    segTop = Color(0xFF4A6635),
-    segBottom = Color(0xFF354926),
-    onSeg = Color(0xFFEFF3E8),
-    error = Color(0xFFE1614E),   // Brick, lifted
+    bg = Color(0xFF19181A),      // warm-neutral carbon ground (neutral ramp, no green)
+    bgTop = Color(0xFF201F21),   // Carbon (neutral) — top of the near-flat wash
+    surface = Color(0xFF232224), // neutral dark-gray card
+    surface2 = Color(0xFF2C2B2E), // neutral ramp step
+    line = Color(0x1AF1F0F2),    // near-white @ ~.10 — neutral hairline
+    text = Color(0xFFECEBEC),    // near-white (neutral)
+    dim = Color(0xFFA8A7A9),     // neutral ramp
+    faint = Color(0xFF767579),   // neutral ramp
+    pine = Color(0xFF8CB06B),    // Brand.Fern, lifted for contrast on carbon (same hue)
+    water = Color(0xFF57A6BA),   // Brand.Teal, lifted (same hue)
+    prime = Color(0xFF8CB06B),   // Brand.Fern, lifted — top tier (no separate crisp green)
+    good = Color(0xFF8CB06B),    // Brand.Fern, lifted — Good rating
+    fair = Color(0xFFE89A45),    // Brand.Amber, lifted (same hue)
+    slow = Color(0xFF86857F),    // neutral ramp
+    cardTop = Color(0xFF262528), // emphasized card = neutral, hairline border
+    cardBottom = Color(0xFF1D1C1E), // neutral ramp step
+    cardBorder = Color(0x1FF1F0F2), // neutral hairline @ ~.12
+    washTop = Color(0xFF171C1E),    // Carbon + a whisper of teal (cool top)
+    washBottom = Color(0xFF1A1B17), // Carbon + a whisper of fern (warm-green bottom)
+    heroTop = Color(0xFF1E2528),    // hero card: faint teal grade …
+    heroBottom = Color(0xFF1D1C1E), // … fading to near-neutral
+    segTop = Color(0xFF4E6A37),  // Brand.Fern step — active nav/segment gradient (brand moment)
+    segBottom = Color(0xFF3A5029), // Brand.Fern, darker step
+    onSeg = Color(0xFFF1F1EE),   // near-white (neutral) text on the Fern segment
+    error = Color(0xFFE1614E),   // Brand.Brick, lifted (same hue)
 )
 
 object KairosColors {
@@ -120,31 +156,50 @@ object KairosColors {
     val CardTop get() = c.cardTop
     val CardBottom get() = c.cardBottom
     val CardBorder get() = c.cardBorder
+    val WashTop get() = c.washTop
+    val WashBottom get() = c.washBottom
+    val HeroTop get() = c.heroTop
+    val HeroBottom get() = c.heroBottom
     val SegTop get() = c.segTop
     val SegBottom get() = c.segBottom
     val OnSeg get() = c.onSeg
     val Error get() = c.error
 }
 
+/**
+ * Chart series colors: the two-series Trends chart needs a colorblind-safe pair, so
+ * it uses the brand green (Fern, theme-aware) for the forecast line and a blue for
+ * the recorded dots — green↔blue separates well under CVD, and shape reinforces it
+ * (line vs dots). Blue appears only here as a data-series color. Grid, labels, and
+ * the "today" reference line follow the active theme and stay recessive/neutral.
+ */
+object ChartColors {
+    val Expected get() = KairosColors.Pine // brand green (Fern), theme-aware — forecast line
+    val Actual get() = if (KairosColors.dark) Color(0xFF5B9BE8) else Color(0xFF2E7FD0) // blue — recorded
+    val Grid get() = KairosColors.Line
+    val Today get() = KairosColors.Faint // neutral, recessive reference line
+    val Label get() = KairosColors.Dim
+}
+
 private val DarkScheme = darkColorScheme(
     primary = DarkPalette.pine,
-    onPrimary = Color(0xFF06120D),
+    onPrimary = Color(0xFF0E100E),   // neutral near-black
     secondary = DarkPalette.water,
-    onSecondary = Color(0xFF06121A),
+    onSecondary = Color(0xFF0E100E), // neutral near-black
     background = DarkPalette.bg,
     onBackground = DarkPalette.text,
     surface = DarkPalette.surface,
     onSurface = DarkPalette.text,
     surfaceVariant = DarkPalette.surface2,
     onSurfaceVariant = DarkPalette.dim,
-    // Container roles + tint kept in the pine family so bare Cards never pull
-    // in Material's default purple-tinted surfaces.
-    surfaceTint = DarkPalette.pine,
-    surfaceContainerLowest = Color(0xFF121411),
+    // Container roles kept NEUTRAL carbon (was green-tinted) so bare Cards never
+    // pull in Material's default purple tint — and never add a green cast either.
+    surfaceTint = DarkPalette.surface,
+    surfaceContainerLowest = Color(0xFF131214),
     surfaceContainerLow = DarkPalette.surface,
-    surfaceContainer = Color(0xFF1F221D),
+    surfaceContainer = Color(0xFF1E1D1F),
     surfaceContainerHigh = DarkPalette.surface2,
-    surfaceContainerHighest = Color(0xFF2E312B),
+    surfaceContainerHighest = Color(0xFF322F33),
     outline = DarkPalette.faint,
     outlineVariant = DarkPalette.line,
     error = DarkPalette.error,
@@ -162,9 +217,9 @@ private val LightScheme = lightColorScheme(
     onSurface = LightPalette.text,
     surfaceVariant = LightPalette.surface2,
     onSurfaceVariant = LightPalette.dim,
-    // Container roles + tint kept neutral/pine so bare Cards never pull in
-    // Material's default purple-tinted surfaces (the "light purple" box).
-    surfaceTint = LightPalette.pine,
+    // Container roles + tint kept neutral so bare Cards never pull in Material's
+    // default purple-tinted surfaces (the "light purple" box) or a green cast.
+    surfaceTint = LightPalette.surface,
     surfaceContainerLowest = Color(0xFFFFFFFF),
     surfaceContainerLow = Color(0xFFF7F7F6),
     surfaceContainer = LightPalette.surface,
@@ -176,11 +231,13 @@ private val LightScheme = lightColorScheme(
     onError = Color(0xFFFFFFFF),
 )
 
-/** The soft radial wash used behind every screen, matching the mockups. */
-fun screenBackground(): Brush = Brush.radialGradient(
-    colors = listOf(KairosColors.BgTop, KairosColors.Bg),
-    radius = 1600f,
-    center = Offset(540f, -120f),
+/**
+ * The ambient screen wash: a soft vertical grade that leans faintly teal at the top
+ * and faintly fern at the bottom, over the neutral ground — a little color so the
+ * app isn't flat white, kept very low-chroma so it reads as atmosphere, not tint.
+ */
+fun screenBackground(): Brush = Brush.verticalGradient(
+    colors = listOf(KairosColors.WashTop, KairosColors.Bg, KairosColors.WashBottom),
 )
 
 @Composable

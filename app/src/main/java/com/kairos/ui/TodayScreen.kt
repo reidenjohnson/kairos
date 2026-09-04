@@ -296,8 +296,8 @@ private fun SpeciesCard(row: SpeciesScore, c: Conditions, emphasized: Boolean, o
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             Modifier
-                                .size(6.dp)
-                                .clip(RoundedCornerShape(3.dp))
+                                .size(8.dp)
+                                .clip(RoundedCornerShape(4.dp))
                                 .background(seasonDotColor(status.kind)),
                         )
                         Spacer(Modifier.width(6.dp))
@@ -405,10 +405,13 @@ private fun OfflineBanner(savedAtMillis: Long) {
     }
 }
 
+// Season status uses teal = open/active, amber = upcoming/soon, neutral gray =
+// closed. Teal (not green) keeps the many in-season dots from flooding the list
+// with green and gives blue a consistent, tasteful role throughout the app.
 private fun seasonDotColor(kind: SeasonStatusKind) = when (kind) {
-    SeasonStatusKind.OPEN -> KairosColors.Prime
-    SeasonStatusKind.UPCOMING -> KairosColors.Water
-    else -> KairosColors.Faint
+    SeasonStatusKind.OPEN -> KairosColors.Water
+    SeasonStatusKind.UPCOMING -> KairosColors.Fair
+    else -> KairosColors.Slow
 }
 
 private fun moonGlyph(name: String): String = when {

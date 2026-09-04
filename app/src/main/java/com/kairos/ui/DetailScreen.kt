@@ -123,7 +123,7 @@ fun DetailScreen(state: UiState, speciesName: String, onOpenSeason: (String) -> 
                 color = KairosColors.Text,
                 modifier = Modifier.weight(1f),
             )
-            Text("View  →", style = MaterialTheme.typography.labelLarge, color = KairosColors.Pine)
+            Text("View  →", style = MaterialTheme.typography.labelLarge, color = KairosColors.Water)
         }
 
         Spacer(Modifier.height(28.dp))
@@ -136,7 +136,7 @@ private fun ScoreHero(percent: Int, rating: com.kairos.engine.Rating, why: Strin
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
-            .background(Brush.verticalGradient(listOf(KairosColors.CardTop, KairosColors.CardBottom)))
+            .background(Brush.verticalGradient(listOf(KairosColors.HeroTop, KairosColors.HeroBottom)))
             .border(1.dp, KairosColors.CardBorder, RoundedCornerShape(20.dp))
             .padding(18.dp),
     ) {
@@ -185,7 +185,7 @@ private fun ScoreHero(percent: Int, rating: com.kairos.engine.Rating, why: Strin
 @Composable
 private fun FactorRowView(row: FactorRow) {
     val (icon, tint) = when (row.dir) {
-        FactorDir.UP -> Icons.Filled.ArrowUpward to KairosColors.Prime
+        FactorDir.UP -> Icons.Filled.ArrowUpward to KairosColors.Good
         FactorDir.DOWN -> Icons.Filled.ArrowDownward to KairosColors.Error
         FactorDir.NEUTRAL -> Icons.Filled.Remove to KairosColors.Faint
     }
@@ -233,7 +233,7 @@ private fun MattersBar(weight: Double) {
                 .fillMaxWidth(frac)
                 .height(3.dp)
                 .clip(RoundedCornerShape(999.dp))
-                .background(KairosColors.Pine.copy(alpha = 0.7f)),
+                .background(KairosColors.Dim.copy(alpha = 0.55f)),
         )
     }
 }
