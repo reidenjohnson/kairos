@@ -43,52 +43,58 @@ private data class Palette(
     val error: Color,
 )
 
+// Reiden's brand palette (2026-09-03): a warm-neutral base (White Smoke ↔ Carbon
+// Black) carries the whole app; the five primaries are used sparingly as ACCENTS.
+// Fern = brand/primary; Amber Earth = highlight/CTA + Fair; Dark Teal = secondary
+// (fish/support); Brick = Poor/error. The crisp app green + other chart hues are
+// secondaries reserved for charts (see the chart palette), not general UI. Color
+// is kept minimal — surfaces and chrome stay neutral so the accents read.
 private val LightPalette = Palette(
-    bg = Color(0xFFFFFFFF),
-    bgTop = Color(0xFFFFFFFF),
-    surface = Color(0xFFF3F5F2),
-    surface2 = Color(0xFFEAEEEA),
-    line = Color(0x11000000), // rgba(0,0,0,.067)
-    text = Color(0xFF14201B),
-    dim = Color(0xFF566159),
-    faint = Color(0xFF8B978F),
-    pine = Color(0xFF2E6B52),
-    water = Color(0xFF2C7DA8),
-    prime = Color(0xFF2E9E54),
-    good = Color(0xFF5E9A2E),
-    fair = Color(0xFFB9862A),
-    slow = Color(0xFF7E8B84),
-    cardTop = Color(0xFFEAF3EE),
-    cardBottom = Color(0xFFF7FAF8),
-    cardBorder = Color(0x332E6B52), // pine @ ~.20
-    segTop = Color(0xFF2E5E4E),
-    segBottom = Color(0xFF3B9E6E),
-    onSeg = Color(0xFFEAFBF3),
-    error = Color(0xFFC0402E),
+    bg = Color(0xFFF5F5F4),      // White Smoke — the ground
+    bgTop = Color(0xFFF8F8F7),   // barely-lighter, for a near-flat radial wash
+    surface = Color(0xFFFFFFFF), // clean white cards on the smoke ground
+    surface2 = Color(0xFFECECEA),
+    line = Color(0x14202321),    // Carbon @ ~.08
+    text = Color(0xFF202321),    // Carbon Black
+    dim = Color(0xFF5E605B),
+    faint = Color(0xFF93938C),
+    pine = Color(0xFF566E3F),    // Fern — brand/primary accent
+    water = Color(0xFF074552),   // Dark Teal — secondary accent (fish/support)
+    prime = Color(0xFF566E3F),   // Fern — primary emphasis
+    good = Color(0xFF566E3F),    // Fern — Good rating
+    fair = Color(0xFFDE8521),    // Amber Earth — Fair rating / highlight
+    slow = Color(0xFF8B8C84),    // warm gray — out-of-season / no-data
+    cardTop = Color(0xFFFFFFFF), // emphasized card = neutral, thin Fern border
+    cardBottom = Color(0xFFF6F6F4),
+    cardBorder = Color(0x38566E3F), // Fern @ ~.22
+    segTop = Color(0xFF5C7642),  // active nav/segment — Fern gradient
+    segBottom = Color(0xFF445734),
+    onSeg = Color(0xFFF2F4EC),
+    error = Color(0xFFB23A2E),   // Brick — Poor / error
 )
 
 private val DarkPalette = Palette(
-    bg = Color(0xFF0E1512),
-    bgTop = Color(0xFF16211C),
-    surface = Color(0xFF171F1B),
-    surface2 = Color(0xFF1E2823),
-    line = Color(0x12FFFFFF), // rgba(255,255,255,.07)
-    text = Color(0xFFE9EFEC),
-    dim = Color(0xFF9AACA4),
-    faint = Color(0xFF6A7D75),
-    pine = Color(0xFF74C0A2),
-    water = Color(0xFF62AED4),
-    prime = Color(0xFF37A85C),
-    good = Color(0xFF86B93F),
-    fair = Color(0xFFD2A03A),
-    slow = Color(0xFF7C8B84),
-    cardTop = Color(0xFF1C2A24),
-    cardBottom = Color(0xFF161E1A),
-    cardBorder = Color(0x4774C0A2), // pine @ ~.28
-    segTop = Color(0xFF25574A),
-    segBottom = Color(0xFF1C4339),
-    onSeg = Color(0xFFEAFBF3),
-    error = Color(0xFFE1614E),
+    bg = Color(0xFF181A17),      // deep carbon ground
+    bgTop = Color(0xFF202321),   // Carbon Black — top of the wash
+    surface = Color(0xFF232622),
+    surface2 = Color(0xFF2C2F2A),
+    line = Color(0x1FF1F1EE),    // near-white @ ~.12
+    text = Color(0xFFF1F1EE),
+    dim = Color(0xFFB2B3AB),
+    faint = Color(0xFF7C7D75),
+    pine = Color(0xFF86A866),    // Fern, lifted for contrast on carbon
+    water = Color(0xFF4F9DB0),   // Dark Teal, lifted
+    prime = Color(0xFF86A866),
+    good = Color(0xFF86A866),
+    fair = Color(0xFFE89A45),    // Amber, lifted
+    slow = Color(0xFF83837C),
+    cardTop = Color(0xFF242722),
+    cardBottom = Color(0xFF1C1F1B),
+    cardBorder = Color(0x4C86A866), // Fern @ ~.30
+    segTop = Color(0xFF4A6635),
+    segBottom = Color(0xFF354926),
+    onSeg = Color(0xFFEFF3E8),
+    error = Color(0xFFE1614E),   // Brick, lifted
 )
 
 object KairosColors {
@@ -134,11 +140,11 @@ private val DarkScheme = darkColorScheme(
     // Container roles + tint kept in the pine family so bare Cards never pull
     // in Material's default purple-tinted surfaces.
     surfaceTint = DarkPalette.pine,
-    surfaceContainerLowest = Color(0xFF0B110E),
+    surfaceContainerLowest = Color(0xFF121411),
     surfaceContainerLow = DarkPalette.surface,
-    surfaceContainer = Color(0xFF1A231E),
+    surfaceContainer = Color(0xFF1F221D),
     surfaceContainerHigh = DarkPalette.surface2,
-    surfaceContainerHighest = Color(0xFF243029),
+    surfaceContainerHighest = Color(0xFF2E312B),
     outline = DarkPalette.faint,
     outlineVariant = DarkPalette.line,
     error = DarkPalette.error,
@@ -160,10 +166,10 @@ private val LightScheme = lightColorScheme(
     // Material's default purple-tinted surfaces (the "light purple" box).
     surfaceTint = LightPalette.pine,
     surfaceContainerLowest = Color(0xFFFFFFFF),
-    surfaceContainerLow = Color(0xFFF7F9F6),
+    surfaceContainerLow = Color(0xFFF7F7F6),
     surfaceContainer = LightPalette.surface,
     surfaceContainerHigh = LightPalette.surface2,
-    surfaceContainerHighest = Color(0xFFE3E8E3),
+    surfaceContainerHighest = Color(0xFFE3E3E0),
     outline = LightPalette.faint,
     outlineVariant = LightPalette.line,
     error = LightPalette.error,
