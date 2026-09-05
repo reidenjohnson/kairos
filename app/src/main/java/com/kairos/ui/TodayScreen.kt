@@ -143,7 +143,7 @@ private fun ForecastList(
         if (sideFilter != null) {
             item { SectionHeader("Game plan", "general idea") }
             item {
-                GamePlanTeaser(buildSidePlan(sideFilter, c, today, forecast.timing), sideFilter) {
+                GamePlanTeaser(buildSidePlan(sideFilter, c, today, forecast.timing, forecast.precipMmHr), sideFilter) {
                     onOpenSidePlan(sideFilter)
                 }
             }

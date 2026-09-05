@@ -58,16 +58,20 @@ internal fun largemouthPlan(
         BassPhase.FALL_FEED -> "Bass are shallow in the backs of coves, chasing schools of smaller fish to fatten up for winter."
         BassPhase.LATE_FALL -> "A few big bass are holding on the sharpest drops near deep water, waiting to ambush the last prey of the year."
     }
-    val moodClause = when (mood) {
-        Mood.FEEDING -> " A front's moving in and the pressure's falling, so they're feeding hard right now — get out ahead of it."
-        Mood.TOUGH -> " But it's a bright, high-pressure day behind a front, so they're sluggish and pinned to cover — slow way down."
-        Mood.ROAMING -> " Clouds and wind have them up and hunting, so keep moving and cover water."
-        Mood.STEADY -> " No big weather push today, so lean on first and last light."
+    val moodClause = when {
+        w.heavyRain -> " A downpour's muddying the water — slow down, hug cover, and throw something they can find in the murk."
+        w.lightRain -> " Rain's falling — it dims the light and washes food into the shallows, so they're up and feeding. Get on it."
+        mood == Mood.FEEDING -> " A front's moving in and the pressure's falling, so they're feeding hard right now — get out ahead of it."
+        mood == Mood.TOUGH -> " But it's a bright, high-pressure day behind a front, so they're sluggish and pinned to cover — slow way down."
+        mood == Mood.ROAMING -> " Clouds and wind have them up and hunting, so keep moving and cover water."
+        else -> " No big weather push today, so lean on first and last light."
     }
     val headline = core + moodClause
 
     // What to throw + how — phase set, overridden to finesse on a tough day.
-    val tacticLine = if (mood == Mood.TOUGH) {
+    val tacticLine = if (w.heavyRain) {
+        "Go bold in the stained water — a dark or bright bait with a big profile or a rattle they can find by feel, worked slow and tight to cover and around any inflow or current."
+    } else if (mood == Mood.TOUGH) {
         "Downsize and slow down: a small finesse worm or a light jig, crawled slow and tight to the thickest shade and cover."
     } else when (phase) {
         BassPhase.FALL_FEED, BassPhase.PRESPAWN ->
@@ -80,11 +84,13 @@ internal fun largemouthPlan(
             "Drag a jig or soft-plastic slow on the bottom, hop a blade bait, or twitch a jerkbait with long pauses — keep it right in their face."
     }
 
-    val whyBrief = when (mood) {
-        Mood.FEEDING -> "Falling pressure before a storm flips a short, hard feeding switch."
-        Mood.TOUGH -> "The bright, high-pressure sky after a front makes bass cautious and glued to cover."
-        Mood.ROAMING -> "Low light and a rippled surface let bass roam and hunt instead of hiding."
-        Mood.STEADY -> "With steady weather, bass feed in the low light and rest when the sun is high."
+    val whyBrief = when {
+        w.heavyRain -> "Heavy rain muddies the water and cuts visibility, so bass pull tight to cover and hunt by feel and vibration instead of sight."
+        w.lightRain -> "Rain dims the light and dimples the surface, so bass drop their guard and feed shallow — and runoff washes food and oxygen into the edges."
+        mood == Mood.FEEDING -> "Bass feed hard as the pressure falls ahead of a storm — it's the fast change and the weather it signals they react to, not the exact number."
+        mood == Mood.TOUGH -> "After a front the bright bluebird sky is the trouble: bass aren't built for sudden bright light, so they pull off the bank, bury in cover, and barely feed for a day or two."
+        mood == Mood.ROAMING -> "Wind and clouds cut the light, so bass lose their fear of being exposed and roam shallow to hunt — and the chop stacks plankton on the windward bank, pulling baitfish, and the bass, in behind it."
+        else -> "Light runs a calm day — bass push shallow to feed in low light and slide to shade and depth when the sun is high."
     }
 
     // ---- Full-page sections ----
@@ -111,7 +117,7 @@ internal fun largemouthPlan(
         )
         BassPhase.FALL_FEED -> Pair(
             "Fish shallow in the backs of coves and creeks, where the bass are herding the smaller fish they're eating.",
-            "The wind is your friend right now — it pushes the schools of prey against windblown banks and points, and the bass are right underneath. Start where a cove pinches down or a creek channel swings near the bank; that's where the prey funnels and the bass gang up to ambush it.",
+            "The wind is your friend right now — it stacks the tiny plankton on the windward banks, the baitfish gather there to eat it, and the bass pile in behind them. Start where a cove pinches down or a creek channel swings near the bank; that's where the prey funnels and the bass gang up to ambush it.",
         )
         BassPhase.LATE_FALL -> Pair(
             "Fish the sharpest drop-offs near deep water. Fewer bass now, but the ones left are big and waiting to ambush.",
@@ -145,7 +151,7 @@ internal fun largemouthPlan(
         append(" When you catch one, slow down and pick that spot apart — bass group up, so there are usually more.")
     }
 
-    val whyMore = "Bass are ambush hunters that rely on cover and low light. A falling barometer ahead of a storm flips a short, intense feeding window; the bright, stable, high-pressure day after a front does the opposite and makes them hunker down. The whole plan is just reading which of those you've got today."
+    val whyMore = "Bass are ambush hunters that dislike bright light and lean on cover. A fast-falling barometer ahead of a storm switches on a short, hard feed — it's the rate of change and the coming weather, not the exact pressure. The bright, high-pressure bluebird day after a front does the opposite: they're light-sensitive, so they pull into cover and shade and go quiet for a day or two. Wind and clouds are a gift — they break up the light so bass feed bolder, add oxygen, and stack the plankton, and the baitfish that eat it, on the windward banks."
 
     return GamePlan(
         phaseLabel = phase.label,

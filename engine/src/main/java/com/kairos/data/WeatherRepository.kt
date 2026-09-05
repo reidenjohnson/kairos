@@ -48,6 +48,8 @@ data class Forecast(
     val timing: DayTiming? = null,
     /** Which weather service produced this forecast — "Open-Meteo" (primary) or "NWS" (backup). */
     val source: String = "Open-Meteo",
+    /** This hour's precipitation rate (mm/hr); 0 when dry. Feeds the Game Plan's rain read. */
+    val precipMmHr: Double = 0.0,
 ) {
     val trendWord: String
         get() = when {
@@ -133,7 +135,7 @@ object WeatherRepository {
     private fun buildUrl(place: Place): String =
         "https://api.open-meteo.com/v1/forecast" +
             "?latitude=${place.lat}&longitude=${place.lon}" +
-            "&hourly=temperature_2m,surface_pressure,wind_speed_10m,cloud_cover" +
+            "&hourly=temperature_2m,surface_pressure,wind_speed_10m,cloud_cover,precipitation" +
             "&current=temperature_2m,surface_pressure,wind_speed_10m,cloud_cover" +
             "&daily=sunrise,sunset" +
             "&timezone=auto&past_days=1&forecast_days=2" +
@@ -223,6 +225,7 @@ object WeatherRepository {
         val temps = hourly.getJSONArray("temperature_2m")
         val winds = hourly.getJSONArray("wind_speed_10m")
         val clouds = hourly.getJSONArray("cloud_cover")
+        val precips = hourly.optJSONArray("precipitation") // optional — older fixtures omit it
 
         // Index of the current hour within the hourly arrays (tz-consistent).
         val nowHour = currentTime.take(13) + ":00"
@@ -238,6 +241,7 @@ object WeatherRepository {
         val pressureInHg = roundTo(pressures.getDouble(i) * HPA_TO_INHG, 0.01)
         val windMph = roundTo(winds.getDouble(i), 1.0)
         val cloudPct = roundTo(clouds.getDouble(i), 5.0)
+        val precipMmHr = precips?.let { roundTo(it.optDouble(i, 0.0), 0.1) } ?: 0.0
 
         // Pressure trend over ~6h (inHg, negative = falling).
         val i6 = maxOf(0, i - 6)
@@ -297,6 +301,7 @@ object WeatherRepository {
             moonName = moon.phaseName,
             sunrise = sunrise,
             sunset = sunset,
+            precipMmHr = precipMmHr,
             // Timing is a bonus layer — never let a glitch in it break the forecast.
             timing = runCatching {
                 computeDayTiming(times, temps, pressures, winds, clouds, date, sunrise, sunset, conditions)

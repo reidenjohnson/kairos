@@ -85,3 +85,59 @@ a real lake-temp source or a user-entered reading. This is flagged in code.
 Rationale in one line each: game is temperature-and-front driven (moose most heat-sensitive);
 fish are pressure-trend driven with a water-temp suitability gate; ducks are front-and-wind;
 walleye is light-and-wind; moon only matters for hare and walleye, per the evidence above.
+
+---
+
+## Game Plan advice — behavioral sources (the tactical "why")
+
+The Game Plan (the app's plain-language "here's what to do today") reasons from the same
+conditions the score uses, but adds *behavioral* guidance: where the fish/game are by
+season, and how today's weather changes what to do. It is written from the consensus of
+established angling/hunting knowledge, cross-referenced below. It is labeled guidance,
+never a guarantee, and it does not invent certainty.
+
+**Wind (fish are generally *more* active in wind, up to fishable limits):** surface chop
+reduces light penetration so bass feed bolder and less warily; wave action adds dissolved
+oxygen; and wind concentrates plankton on the windward bank, which draws baitfish and the
+bass that hunt them (the "wind-blown bank" pattern). Baitfish follow the food, not the
+current itself.
+- BassResource, "Fishing When the Wind Blows" — https://www.bassresource.com/fishing/wind_fish.html
+- Bassmaster, "Windy day wisdom" — https://www.bassmaster.com/how-to/news/windy-day-wisdom/
+
+**Barometric pressure / falling ahead of a front:** bass commonly go on an aggressive
+pre-front feed as pressure falls; it's the *rate of change* (and the weather the change
+signals) that matters, not the absolute number. The direct mechanism (swim-bladder comfort)
+is debated and one controlled study found no significant direct effect, so we treat pressure
+as a weather proxy, honestly.
+- Mercury Marine, "How Barometric Pressure Affects Fishing" — https://www.mercurymarine.com/us/en/lifestyle/dockline/how-barometric-pressure-affects-fishing
+- VanderWeyst (2014), yellow-perch feeding vs. barometric pressure (no significant direct effect) — https://www.bemidjistate.edu/directory/wp-content/uploads/sites/16/2023/02/2014-VanderWeyst-D.-The-effect-of-barometric-pressure-on-feeding-activity-of-yellow-perch..pdf
+
+**Post-front "bluebird" day (tough bite):** flat wind + bright sky + a sharp temp drop pins
+bass tight to cover and deeper; they are light-sensitive and not adapted to the sudden bright
+light, so they pull off the bank and barely feed for a day or two → downsize and slow down.
+- Louisiana Sportsman, "Bluebird blues — bass fishing after a front" — https://www.louisianasportsman.com/fishing/bass-fishing/bluebird-blues-expert-tips-for-bass-fishing-after-a-front/
+
+**Rain:** light/moderate rain and overcast reduce light penetration and the surface dimple
+masks the fish, so bass move shallow and feed more aggressively; runoff washes food and
+oxygen into the shallows, gathering baitfish. A downpour muddies the water → slow down, bold
+profiles, target inflows/current.
+- On The Water, "Largemouths in the Rain" — https://onthewater.com/fishing-in-the-rain-bass-strategies
+
+**Whitetail movement (weather):** barometric pressure was the strongest single stimulus in
+the multi-year "What Makes Whitetails Move" tracking; best daylight movement clusters around
+30.10–30.30 inHg and on the rapid drop and the rising barometer *behind* a cold front (the
+first cold, clear morning). Warm spells push movement into the night (deer overheat in their
+winter coat); high wind makes deer bed in sheltered cover and cuts movement until it calms.
+- Mossy Oak, "Barometric Pressure's Influence on Whitetail Movement" — https://www.mossyoak.com/our-obsession/blogs/deer/barometric-pressures-influence-on-whitetail-movement-4
+- MeatEater / Wired to Hunt, "Does Barometric Pressure Affect Deer Movement?" — https://www.themeateater.com/wired-to-hunt/whitetail-hunting/does-barometric-pressure-affect-deer-movement
+
+**Whitetail rut timing (photoperiod, NOT weather):** the rut is triggered by day length, so
+peak breeding lands the same weeks each year (Maine ~mid-November) regardless of the weather;
+weather only changes whether rutting deer move in daylight. (Consistent with our decision to
+keep the rut date-driven and never weather-driven for its *timing*.)
+
+**Moon / solunar (kept near-zero, honestly):** evidence for a direct lunar effect on feeding
+is genuinely mixed — some reviews find a signal, peer-reviewed CPUE work finds none (air
+temperature was a better predictor). We keep moon at near-zero weight except where evidence
+supports it (snowshoe hare, walleye new/full windows).
+- Springer, "No significant relationship between CPUE and solunar values" — https://link.springer.com/article/10.1007/s42452-023-05379-8

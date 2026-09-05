@@ -108,11 +108,12 @@ fun GamePlanScreen(state: UiState, speciesName: String?, side: Side?) {
         return
     }
     val c = ready.forecast.conditions
+    val precip = ready.forecast.precipMmHr
     val plan = if (speciesName != null) {
         val sp = SPECIES.firstOrNull { it.name == speciesName } ?: return
-        buildGamePlan(sp, c, LocalDate.now(), ready.forecast.timing)
+        buildGamePlan(sp, c, LocalDate.now(), ready.forecast.timing, precip)
     } else {
-        buildSidePlan(side ?: Side.FISH, c, LocalDate.now(), ready.forecast.timing)
+        buildSidePlan(side ?: Side.FISH, c, LocalDate.now(), ready.forecast.timing, precip)
     }
 
     Column(

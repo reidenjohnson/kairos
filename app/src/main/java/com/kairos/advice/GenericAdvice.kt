@@ -132,22 +132,26 @@ internal fun generalFishPlan(c: Conditions, w: WeatherRead, date: LocalDate, tim
         )
     }
 
-    val moodClause = when (mood) {
-        Mood.FEEDING -> " A front's moving in and the pressure's falling, so they're feeding — get out now."
-        Mood.TOUGH -> " But it's bright and high-pressure after a front, so expect a slower day — fish early and late."
-        Mood.ROAMING -> " Clouds and wind have them roaming, so cover water."
-        Mood.STEADY -> " No big weather push, so lean on the light windows."
+    val moodClause = when {
+        w.heavyRain -> " A downpour's muddying the water — slow down, hug cover, and use something they can find in the murk."
+        w.lightRain -> " Rain's falling — it dims the light and washes food in, so they're up and feeding. Get on it."
+        mood == Mood.FEEDING -> " A front's moving in and the pressure's falling, so they're feeding — get out now."
+        mood == Mood.TOUGH -> " But it's bright and high-pressure after a front, so expect a slower day — fish early and late."
+        mood == Mood.ROAMING -> " Clouds and wind have them roaming, so cover water."
+        else -> " No big weather push, so lean on the light windows."
     }
 
     val tacticLine = when {
         mood == Mood.TOUGH || (w.calm && w.clear) -> "Slow down and go small — a finesse worm or light jig, natural colors, light line."
         else -> "Cover water with a moving lure that looks like a small fish — a crankbait, spinnerbait, or lipless crank reeled steady; walk a topwater when fish break the surface."
     }
-    val whyBrief = when (mood) {
-        Mood.FEEDING -> "Falling pressure before a storm makes fish feed hard — a good day to be out."
-        Mood.TOUGH -> "The bright, high-pressure sky after a front makes fish sluggish and tight to cover."
-        Mood.ROAMING -> "Clouds and wind dim the light and ripple the surface, so fish roam and hunt."
-        Mood.STEADY -> "With steady weather, fish feed in low light and rest when the sun is high."
+    val whyBrief = when {
+        w.heavyRain -> "Heavy rain muddies the water and cuts visibility, so fish hold tight to cover and hunt by feel."
+        w.lightRain -> "Rain dims the light and dimples the surface, so fish drop their guard and feed — and runoff washes food and oxygen into the edges."
+        mood == Mood.FEEDING -> "Falling pressure before a storm makes fish feed hard — a good day to be out."
+        mood == Mood.TOUGH -> "The bright, high-pressure sky after a front makes fish sluggish and tight to cover."
+        mood == Mood.ROAMING -> "Clouds and wind dim the light and ripple the surface, so fish roam and hunt."
+        else -> "With steady weather, fish feed in low light and rest when the sun is high."
     }
 
     val whenBrief = buildString {

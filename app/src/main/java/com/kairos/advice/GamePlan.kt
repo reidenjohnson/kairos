@@ -46,7 +46,7 @@ enum class PlanKind { WHERE, WHEN, HOW, WHY }
 data class PlanSection(val kind: PlanKind, val label: String, val brief: String, val more: String)
 
 /** A plain reading of today's weather, in the terms that actually change tactics. */
-internal class WeatherRead(c: Conditions) {
+internal class WeatherRead(c: Conditions, val precipMmHr: Double = 0.0) {
     val trend = c.pressureTrendInHg
     val falling = trend < -0.03
     val rising = trend > 0.03
@@ -68,6 +68,11 @@ internal class WeatherRead(c: Conditions) {
     val bluebird = rising && highPressure && clear
     val airF = c.airF
     val waterF = c.waterF
+    // Rain. Light/moderate rain is a strong positive for fish (dims light, masks the
+    // fish, washes food and oxygen in); a downpour muddies the water and changes tactics.
+    val raining = precipMmHr >= 0.2
+    val heavyRain = precipMmHr >= 7.6
+    val lightRain = raining && !heavyRain
 }
 
 /**
@@ -82,6 +87,7 @@ internal enum class Mood { FEEDING, TOUGH, ROAMING, STEADY }
 
 internal fun WeatherRead.mood(): Mood = when {
     frontIncoming || falling -> Mood.FEEDING
+    lightRain -> Mood.ROAMING // rain dims the light and washes food in — they hunt
     bluebird -> Mood.TOUGH
     overcast || windy -> Mood.ROAMING
     else -> Mood.STEADY
@@ -111,8 +117,8 @@ private fun hr(h24: Int): String {
  * Build a species' plan. Deep content where it exists; a true, trait-driven plan
  * otherwise (never filler — same season/weather/light reasoning).
  */
-fun buildGamePlan(sp: Species, c: Conditions, date: LocalDate, timing: DayTiming?): GamePlan {
-    val w = WeatherRead(c)
+fun buildGamePlan(sp: Species, c: Conditions, date: LocalDate, timing: DayTiming?, precipMmHr: Double = 0.0): GamePlan {
+    val w = WeatherRead(c, precipMmHr)
     return when (sp.name) {
         "Largemouth bass" -> largemouthPlan(sp, c, w, date, timing)
         "Whitetail deer" -> whitetailPlan(sp, c, w, date, timing)
@@ -126,6 +132,7 @@ fun buildGamePlan(sp: Species, c: Conditions, date: LocalDate, timing: DayTiming
  * representative pattern for the side (bass for fishing, deer for hunting) but framed
  * generally, so a beginner gets pointed in the right direction at a glance.
  */
-fun buildSidePlan(side: Side, c: Conditions, date: LocalDate, timing: DayTiming?): GamePlan =
-    if (side == Side.FISH) generalFishPlan(c, WeatherRead(c), date, timing)
-    else generalHuntPlan(c, WeatherRead(c), date, timing)
+fun buildSidePlan(side: Side, c: Conditions, date: LocalDate, timing: DayTiming?, precipMmHr: Double = 0.0): GamePlan {
+    val w = WeatherRead(c, precipMmHr)
+    return if (side == Side.FISH) generalFishPlan(c, w, date, timing) else generalHuntPlan(c, w, date, timing)
+}

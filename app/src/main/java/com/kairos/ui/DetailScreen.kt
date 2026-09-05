@@ -97,7 +97,7 @@ fun DetailScreen(state: UiState, speciesName: String, onOpenSeason: (String) -> 
         SectionLabel("GAME PLAN")
         Spacer(Modifier.height(8.dp))
         GamePlanTeaser(
-            buildGamePlan(species, c, java.time.LocalDate.now(), forecast.timing),
+            buildGamePlan(species, c, java.time.LocalDate.now(), forecast.timing, forecast.precipMmHr),
             species.side,
         ) { onOpenPlan(speciesName) }
 
