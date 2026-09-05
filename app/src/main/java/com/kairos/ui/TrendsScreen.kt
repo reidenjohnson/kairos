@@ -59,19 +59,30 @@ fun TrendsScreen(state: UiState, outlook: Outlook?) {
     Column(
         Modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = Space.screen),
     ) {
-        Spacer(Modifier.height(8.dp))
-        Text("Score history & outlook", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(Space.xs))
+        Overline("Trends", color = KairosColors.Water)
+        Spacer(Modifier.height(Space.xs))
+        Text(
+            "Score history & outlook",
+            fontFamily = Bricolage,
+            fontSize = 26.sp,
+            fontWeight = FontWeight.ExtraBold,
+            letterSpacing = (-0.5).sp,
+            lineHeight = 30.sp,
+            color = KairosColors.Text,
+        )
+        Spacer(Modifier.height(Space.sm))
         Text(
             "The line is the model's best score for each day — the past week and the days ahead. " +
                 "Dots are what you saw on the days you actually checked, logged automatically.",
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = KairosColors.Dim,
         )
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(Space.lg))
 
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
             items(SPECIES) { sp ->
                 FilterChip(
                     selected = sp.name == selected,

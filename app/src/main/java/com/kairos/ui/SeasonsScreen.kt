@@ -74,40 +74,66 @@ fun SeasonsScreen(focusSpecies: String?) {
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = Space.screen),
+        verticalArrangement = Arrangement.spacedBy(Space.md),
     ) {
-        item { Spacer(Modifier.height(2.dp)) }
-        item { Text("Maine · general law", style = MaterialTheme.typography.bodySmall, color = KairosColors.Faint) }
+        item { Spacer(Modifier.height(Space.xs)) }
+        item { SeasonsHeader() }
         item { HuntFishSegment(side) { side = it } }
         item { OpenNowCard(speciesList, today) }
-        item {
-            Text(
-                "THE SEASON AT A GLANCE",
-                style = MaterialTheme.typography.labelSmall,
-                color = KairosColors.Faint,
-                letterSpacing = 1.4.sp,
-                modifier = Modifier.padding(top = 6.dp),
-            )
-        }
+        item { SectionTick("The season at a glance") }
         item { GlanceTimeline(speciesList, today) { sheetSpecies = it } }
-        item {
-            Text(
-                "COMING UP",
-                style = MaterialTheme.typography.labelSmall,
-                color = KairosColors.Faint,
-                letterSpacing = 1.4.sp,
-                modifier = Modifier.padding(top = 6.dp),
-            )
-        }
+        item { SectionTick("Coming up") }
         item { ComingUp(speciesList, today) { sheetSpecies = it } }
         item { Footer() }
-        item { Spacer(Modifier.height(20.dp)) }
+        item { Spacer(Modifier.height(Space.lg)) }
     }
 
     val focused = sheetSpecies?.let { seasonsFor(it) }
     if (focused != null) {
         SpeciesSeasonSheet(focused, today, onDismiss = { sheetSpecies = null })
+    }
+}
+
+@Composable
+private fun SeasonsHeader() {
+    Column {
+        Overline("Seasons", color = KairosColors.Water)
+        Spacer(Modifier.height(Space.xs))
+        Text(
+            "Maine seasons",
+            fontFamily = Bricolage,
+            fontSize = 30.sp,
+            fontWeight = FontWeight.ExtraBold,
+            letterSpacing = (-0.8).sp,
+            lineHeight = 34.sp,
+            color = KairosColors.Text,
+        )
+        Spacer(Modifier.height(Space.xs))
+        Text(
+            "General law · dates from Maine IF&W",
+            style = MaterialTheme.typography.bodySmall,
+            color = KairosColors.Faint,
+        )
+    }
+}
+
+/** The shared section voice on this screen: an accent tick + tracked kicker. */
+@Composable
+private fun SectionTick(text: String) {
+    Row(
+        modifier = Modifier.padding(top = Space.xs),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier
+                .height(12.dp)
+                .width(3.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(KairosColors.Water),
+        )
+        Spacer(Modifier.width(8.dp))
+        Overline(text, color = KairosColors.Dim)
     }
 }
 
