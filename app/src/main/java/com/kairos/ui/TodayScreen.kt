@@ -30,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -255,6 +256,7 @@ private fun LegalLightCard(f: Forecast) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .shadow(3.dp, RoundedCornerShape(16.dp), clip = false, spotColor = KairosColors.ShadowSpot, ambientColor = KairosColors.ShadowSpot)
             .clip(RoundedCornerShape(16.dp))
             .background(KairosColors.Surface)
             .border(1.dp, KairosColors.Line, RoundedCornerShape(16.dp))
@@ -311,6 +313,13 @@ private fun SpeciesCard(row: SpeciesScore, c: Conditions, emphasized: Boolean, o
     val shape = RoundedCornerShape(radius)
     val base = Modifier
         .fillMaxWidth()
+        .shadow(
+            elevation = if (emphasized) 12.dp else 3.dp,
+            shape = shape,
+            clip = false,
+            spotColor = KairosColors.ShadowSpot,
+            ambientColor = KairosColors.ShadowSpot,
+        )
         .clip(shape)
         .clickable { onOpenDetail(row.species.name) }
     val styled = if (emphasized) {

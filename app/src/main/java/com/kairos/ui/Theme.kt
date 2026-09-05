@@ -49,6 +49,8 @@ private data class Palette(
     val segBottom: Color,
     val onSeg: Color,
     val error: Color,
+    /** Elevation shadow tint — a cool deep tone on light; black (invisible) on dark. */
+    val shadowSpot: Color,
 )
 
 /**
@@ -95,12 +97,13 @@ private val LightPalette = Palette(
     cardBorder = Color(0x14202321), // Carbon @ ~.08 — neutral hairline
     washTop = Color(0xFFEDF2F3),    // Smoke + a whisper of teal (cool top)
     washBottom = Color(0xFFF1F3EC), // Smoke + a whisper of fern (warm-green bottom)
-    heroTop = Color(0xFFE9F1F2),    // hero card: faint teal grade …
-    heroBottom = Color(0xFFF6F7F3), // … fading to near-neutral
+    heroTop = Color(0xFFEAF1F1),    // hero card: a faint teal hint — the shadow gives the lift
+    heroBottom = Color(0xFFF4F6F3), // … close to neutral, so there's no loud gradient
     segTop = Color(0xFF5C7642),  // Fern +1 step — active nav/segment gradient (brand moment)
     segBottom = Color(0xFF445734), // Fern −1 step
     onSeg = Color(0xFFF3F2EF),   // near-white (neutral) text on the Fern segment
     error = Brand.Brick,         // Brick — Poor / error / "down"
+    shadowSpot = Color(0xFF1B2B31), // cool deep teal-carbon — soft, designed shadow
 )
 
 // Dark theme is a WARM-NEUTRAL carbon — deliberately NOT green-tinted (the earlier
@@ -132,6 +135,7 @@ private val DarkPalette = Palette(
     segBottom = Color(0xFF3A5029), // Brand.Fern, darker step
     onSeg = Color(0xFFF1F1EE),   // near-white (neutral) text on the Fern segment
     error = Color(0xFFE1614E),   // Brand.Brick, lifted (same hue)
+    shadowSpot = Color(0xFF000000), // black — shadows are ~invisible on the dark ground
 )
 
 object KairosColors {
@@ -165,6 +169,7 @@ object KairosColors {
     val SegBottom get() = c.segBottom
     val OnSeg get() = c.onSeg
     val Error get() = c.error
+    val ShadowSpot get() = c.shadowSpot
 }
 
 /**
