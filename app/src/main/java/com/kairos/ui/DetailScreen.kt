@@ -35,6 +35,8 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kairos.advice.GamePlan
+import com.kairos.advice.buildGamePlan
 import com.kairos.data.Forecast
 import com.kairos.engine.SPECIES
 import com.kairos.engine.Side
@@ -90,7 +92,7 @@ fun DetailScreen(state: UiState, speciesName: String, onOpenSeason: (String) -> 
         Spacer(Modifier.height(20.dp))
         SectionLabel("GAME PLAN")
         Spacer(Modifier.height(8.dp))
-        GamePlanCard(gamePlan(species, c))
+        GamePlanCard(buildGamePlan(species, c, java.time.LocalDate.now(), forecast.timing))
 
         if (species.side == Side.HUNT && forecast.legalShootingHours != null) {
             Spacer(Modifier.height(16.dp))
@@ -239,18 +241,55 @@ private fun MattersBar(weight: Double) {
 }
 
 @Composable
-private fun GamePlanCard(text: String) {
+private fun GamePlanCard(plan: GamePlan) {
     Column(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
             .background(Brush.verticalGradient(listOf(KairosColors.CardTop, KairosColors.CardBottom)))
             .border(1.dp, KairosColors.CardBorder, RoundedCornerShape(18.dp))
-            .padding(16.dp),
+            .padding(18.dp),
     ) {
-        Text(text, style = MaterialTheme.typography.bodyLarge, color = KairosColors.Text, lineHeight = 22.sp)
-        Spacer(Modifier.height(8.dp))
-        Text("Guidance from today's conditions — not a guarantee.", style = MaterialTheme.typography.labelSmall, color = KairosColors.Faint)
+        Box(
+            Modifier
+                .clip(RoundedCornerShape(999.dp))
+                .background(KairosColors.Water.copy(alpha = 0.14f))
+                .padding(horizontal = 10.dp, vertical = 3.dp),
+        ) {
+            Text(
+                plan.phaseLabel.uppercase(),
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = KairosColors.Water,
+                letterSpacing = 0.6.sp,
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+        Text(
+            plan.headline,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = KairosColors.Text,
+            lineHeight = 24.sp,
+        )
+        plan.sections.forEach { s ->
+            Spacer(Modifier.height(15.dp))
+            Text(
+                s.label.uppercase(),
+                style = MaterialTheme.typography.labelSmall,
+                color = KairosColors.Water,
+                letterSpacing = 1.2.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(Modifier.height(3.dp))
+            Text(s.body, style = MaterialTheme.typography.bodyMedium, color = KairosColors.Dim, lineHeight = 20.sp)
+        }
+        Spacer(Modifier.height(14.dp))
+        Text(
+            "Guidance from the season and today's conditions — not a guarantee.",
+            style = MaterialTheme.typography.labelSmall,
+            color = KairosColors.Faint,
+        )
     }
 }
 
