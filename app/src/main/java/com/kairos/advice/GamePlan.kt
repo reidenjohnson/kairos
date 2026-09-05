@@ -21,16 +21,28 @@ import java.time.LocalDate
  * It's honest guidance grounded in established, consensus knowledge — never a promise.
  */
 
+/**
+ * A plan has two layers. The **card** shows just [headline] + [tacticLine] + [whyBrief]
+ * — three sentences: exactly what to do, what to throw or how to hunt it, and a quick
+ * why. Tapping the card opens the full page, which lays out every [PlanSection] (the
+ * detailed Where / When / How / Why). The card is built to *vary* day to day: the
+ * headline and tactic fold in today's weather on top of the season.
+ */
 data class GamePlan(
-    /** The one-punch read of the day — plain and short. */
-    val headline: String,
     val phaseLabel: String,
+    /** What to do and where — the punch. Weather + season aware. */
+    val headline: String,
+    /** What to throw (fishing) or how to hunt it — a couple options and how to work them. */
+    val tacticLine: String,
+    /** A one-sentence why. */
+    val whyBrief: String,
+    /** The full breakdown for the plan page. */
     val sections: List<PlanSection>,
 )
 
 enum class PlanKind { WHERE, WHEN, HOW, WHY }
 
-/** One section: a short do-this [brief] and an optional longer [more] for the curious. */
+/** One section of the full page: a short do-this [brief] and a longer [more]. */
 data class PlanSection(val kind: PlanKind, val label: String, val brief: String, val more: String)
 
 /** A plain reading of today's weather, in the terms that actually change tactics. */
@@ -56,6 +68,23 @@ internal class WeatherRead(c: Conditions) {
     val bluebird = rising && highPressure && clear
     val airF = c.airF
     val waterF = c.waterF
+}
+
+/**
+ * Today's weather posture — the single biggest lever on what to actually do. Every
+ * plan reads this so the advice changes day to day, not just month to month:
+ *  - FEEDING: a front is coming or pressure is dropping — a hard, short feeding window.
+ *  - TOUGH: the bright, high-pressure "bluebird" day right after a front — a slow bite.
+ *  - ROAMING: clouds and/or wind — they're up and hunting, so cover water.
+ *  - STEADY: nothing pushing them — lean on the light windows.
+ */
+internal enum class Mood { FEEDING, TOUGH, ROAMING, STEADY }
+
+internal fun WeatherRead.mood(): Mood = when {
+    frontIncoming || falling -> Mood.FEEDING
+    bluebird -> Mood.TOUGH
+    overcast || windy -> Mood.ROAMING
+    else -> Mood.STEADY
 }
 
 /** Formats the day's best windows into "6–10 AM and 5–8 PM", or a light-based fallback. */

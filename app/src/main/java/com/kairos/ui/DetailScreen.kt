@@ -53,7 +53,7 @@ import java.time.format.DateTimeFormatter
  * "game plan". Everything traces back to the engine's factors — see [Explain].
  */
 @Composable
-fun DetailScreen(state: UiState, speciesName: String, onOpenSeason: (String) -> Unit) {
+fun DetailScreen(state: UiState, speciesName: String, onOpenSeason: (String) -> Unit, onOpenPlan: (String) -> Unit) {
     val ready = state as? UiState.Ready
     if (ready == null) {
         Box(Modifier.fillMaxSize(), Alignment.Center) {
@@ -96,7 +96,10 @@ fun DetailScreen(state: UiState, speciesName: String, onOpenSeason: (String) -> 
         Spacer(Modifier.height(20.dp))
         SectionLabel("GAME PLAN")
         Spacer(Modifier.height(8.dp))
-        GamePlanCard(buildGamePlan(species, c, java.time.LocalDate.now(), forecast.timing))
+        GamePlanTeaser(
+            buildGamePlan(species, c, java.time.LocalDate.now(), forecast.timing),
+            species.side,
+        ) { onOpenPlan(speciesName) }
 
         if (species.side == Side.HUNT && forecast.legalShootingHours != null) {
             Spacer(Modifier.height(16.dp))
@@ -244,71 +247,6 @@ private fun MattersBar(weight: Double) {
     }
 }
 
-@Composable
-private fun GamePlanCard(plan: GamePlan) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(Brush.verticalGradient(listOf(KairosColors.CardTop, KairosColors.CardBottom)))
-            .border(1.dp, KairosColors.CardBorder, RoundedCornerShape(18.dp))
-            .padding(18.dp),
-    ) {
-        Box(
-            Modifier
-                .clip(RoundedCornerShape(999.dp))
-                .background(KairosColors.Water.copy(alpha = 0.14f))
-                .padding(horizontal = 10.dp, vertical = 3.dp),
-        ) {
-            Text(
-                plan.phaseLabel.uppercase(),
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
-                color = KairosColors.Water,
-                letterSpacing = 0.6.sp,
-            )
-        }
-        Spacer(Modifier.height(10.dp))
-        Text(
-            plan.headline,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = KairosColors.Text,
-            lineHeight = 24.sp,
-        )
-        var expanded by remember(plan) { mutableStateOf(false) }
-        plan.sections.forEach { s ->
-            Spacer(Modifier.height(15.dp))
-            Text(
-                s.label.uppercase(),
-                style = MaterialTheme.typography.labelSmall,
-                color = KairosColors.Water,
-                letterSpacing = 1.2.sp,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Spacer(Modifier.height(3.dp))
-            Text(s.brief, style = MaterialTheme.typography.bodyMedium, color = KairosColors.Text, lineHeight = 20.sp)
-            if (expanded && s.more.isNotBlank()) {
-                Spacer(Modifier.height(5.dp))
-                Text(s.more, style = MaterialTheme.typography.bodySmall, color = KairosColors.Dim, lineHeight = 19.sp)
-            }
-        }
-        Spacer(Modifier.height(16.dp))
-        Text(
-            if (expanded) "Show less" else "Read more — the why behind it  ›",
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.SemiBold,
-            color = KairosColors.Water,
-            modifier = Modifier.clickable { expanded = !expanded },
-        )
-        Spacer(Modifier.height(12.dp))
-        Text(
-            "Guidance from the season and today's conditions — not a guarantee.",
-            style = MaterialTheme.typography.labelSmall,
-            color = KairosColors.Faint,
-        )
-    }
-}
 
 @Composable
 private fun LegalLightLine(f: Forecast) {

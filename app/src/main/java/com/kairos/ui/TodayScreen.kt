@@ -66,6 +66,7 @@ fun TodayScreen(
     onRefresh: () -> Unit,
     onSelectSide: (Side?) -> Unit,
     onOpenDetail: (String) -> Unit,
+    onOpenSidePlan: (Side) -> Unit,
 ) {
     when (state) {
         is UiState.Loading -> Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
@@ -75,7 +76,7 @@ fun TodayScreen(
             onRefresh = onRefresh,
             modifier = Modifier.fillMaxSize(),
         ) {
-            ForecastList(state, sideFilter, refreshing, onSelectSide, onOpenDetail)
+            ForecastList(state, sideFilter, refreshing, onSelectSide, onOpenDetail, onOpenSidePlan)
         }
     }
 }
@@ -105,6 +106,7 @@ private fun ForecastList(
     refreshing: Boolean,
     onSelectSide: (Side?) -> Unit,
     onOpenDetail: (String) -> Unit,
+    onOpenSidePlan: (Side) -> Unit,
 ) {
     val forecast = ready.forecast
     val c = forecast.conditions
@@ -140,7 +142,11 @@ private fun ForecastList(
         // without picking a species. (Best tab stays glanceable: hero + top pick.)
         if (sideFilter != null) {
             item { SectionHeader("Game plan", "general idea") }
-            item { SidePlanCard(buildSidePlan(sideFilter, c, today, forecast.timing)) }
+            item {
+                GamePlanTeaser(buildSidePlan(sideFilter, c, today, forecast.timing), sideFilter) {
+                    onOpenSidePlan(sideFilter)
+                }
+            }
         }
         item { SectionHeader("Best today", "In season · $openCount") }
         items(primary) { row ->
@@ -386,56 +392,6 @@ private fun SpeciesCard(row: SpeciesScore, c: Conditions, emphasized: Boolean, o
         ScoreBar(row.percent, ratingColor(row.rating))
         Spacer(Modifier.height(Space.md))
         Text(whyFor(row.species, c), style = MaterialTheme.typography.bodyMedium, color = KairosColors.Dim, lineHeight = 19.sp)
-    }
-}
-
-/** The general side-level game plan on the Fish / Hunt tab: brief by default, expandable. */
-@Composable
-private fun SidePlanCard(plan: GamePlan) {
-    var expanded by remember(plan) { mutableStateOf(false) }
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .shadow(6.dp, RoundedCornerShape(20.dp), clip = false, spotColor = KairosColors.ShadowSpot, ambientColor = KairosColors.ShadowSpot)
-            .clip(RoundedCornerShape(20.dp))
-            .background(Brush.verticalGradient(listOf(KairosColors.CardTop, KairosColors.CardBottom)))
-            .border(1.dp, KairosColors.CardBorder, RoundedCornerShape(20.dp))
-            .padding(18.dp),
-    ) {
-        Box(
-            Modifier
-                .clip(RoundedCornerShape(999.dp))
-                .background(KairosColors.Water.copy(alpha = 0.14f))
-                .padding(horizontal = 10.dp, vertical = 3.dp),
-        ) {
-            Text(
-                plan.phaseLabel.uppercase(),
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
-                color = KairosColors.Water,
-                letterSpacing = 0.6.sp,
-            )
-        }
-        Spacer(Modifier.height(10.dp))
-        Text(plan.headline, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = KairosColors.Text, lineHeight = 24.sp)
-        plan.sections.forEach { s ->
-            Spacer(Modifier.height(14.dp))
-            Text(s.label.uppercase(), style = MaterialTheme.typography.labelSmall, color = KairosColors.Water, letterSpacing = 1.2.sp, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.height(3.dp))
-            Text(s.brief, style = MaterialTheme.typography.bodyMedium, color = KairosColors.Text, lineHeight = 20.sp)
-            if (expanded && s.more.isNotBlank()) {
-                Spacer(Modifier.height(5.dp))
-                Text(s.more, style = MaterialTheme.typography.bodySmall, color = KairosColors.Dim, lineHeight = 19.sp)
-            }
-        }
-        Spacer(Modifier.height(16.dp))
-        Text(
-            if (expanded) "Show less" else "Read more  ›",
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.SemiBold,
-            color = KairosColors.Water,
-            modifier = Modifier.clickable { expanded = !expanded },
-        )
     }
 }
 

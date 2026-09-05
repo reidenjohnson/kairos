@@ -80,14 +80,20 @@ sealed interface UiState {
     data class Error(val message: String) : UiState
 }
 
-private enum class Dest { TODAY, SEASONS, WEEKLY, DETAIL }
+private enum class Dest { TODAY, SEASONS, WEEKLY, DETAIL, PLAN }
 
-/** One place in the app. [side] applies to TODAY; [seasonFocus] to SEASONS; [detailSpecies] to DETAIL. */
+/**
+ * One place in the app. [side] applies to TODAY; [seasonFocus] to SEASONS; [detailSpecies]
+ * to DETAIL; the PLAN page uses [planSpecies] (a species plan) or [planSide] (a general
+ * side plan).
+ */
 private data class NavEntry(
     val dest: Dest,
     val side: Side? = null,
     val seasonFocus: String? = null,
     val detailSpecies: String? = null,
+    val planSpecies: String? = null,
+    val planSide: Side? = null,
 )
 
 /**
@@ -216,6 +222,7 @@ fun KairosApp(onToggleTheme: (Boolean) -> Unit = {}) {
                 Dest.SEASONS -> "Seasons"
                 Dest.WEEKLY -> "Weekly outlook"
                 Dest.DETAIL -> current.detailSpecies ?: "Details"
+                Dest.PLAN -> "Game plan"
             }
             Scaffold(
                 containerColor = KairosColors.Bg,
@@ -228,7 +235,7 @@ fun KairosApp(onToggleTheme: (Boolean) -> Unit = {}) {
                             }
                         },
                         actions = {
-                            if (dest != Dest.SEASONS && dest != Dest.DETAIL) {
+                            if (dest == Dest.TODAY || dest == Dest.WEEKLY) {
                                 IconButton(onClick = { reloadKey++ }) {
                                     Icon(Icons.Filled.Refresh, contentDescription = "Refresh")
                                 }
@@ -254,6 +261,9 @@ fun KairosApp(onToggleTheme: (Boolean) -> Unit = {}) {
                             onOpenDetail = { species ->
                                 goTo(NavEntry(Dest.DETAIL, detailSpecies = species))
                             },
+                            onOpenSidePlan = { s ->
+                                goTo(NavEntry(Dest.PLAN, planSide = s))
+                            },
                         )
                         Dest.SEASONS -> SeasonsScreen(focusSpecies = current.seasonFocus)
                         Dest.WEEKLY -> TrendsScreen(state = state, outlook = outlook)
@@ -263,6 +273,14 @@ fun KairosApp(onToggleTheme: (Boolean) -> Unit = {}) {
                             onOpenSeason = { species ->
                                 goTo(NavEntry(Dest.SEASONS, seasonFocus = species))
                             },
+                            onOpenPlan = { species ->
+                                goTo(NavEntry(Dest.PLAN, planSpecies = species))
+                            },
+                        )
+                        Dest.PLAN -> GamePlanScreen(
+                            state = state,
+                            speciesName = current.planSpecies,
+                            side = current.planSide,
                         )
                     }
                 }
