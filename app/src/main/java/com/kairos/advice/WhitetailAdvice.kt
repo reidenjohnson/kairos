@@ -7,16 +7,12 @@ import com.kairos.engine.Species
 import java.time.LocalDate
 
 /**
- * Whitetail deer — the deep content. The deer year is driven by day length, so the
- * calendar sets the behavior (this is why the rut lands the same weeks every year,
- * weather regardless), and the weather sets whether they move in daylight. The plan
- * reads the phase from the date and then leans on today's front, temperature, and
- * wind to tell you when and how to hunt it.
+ * Whitetail deer — the deep content, written plainly. The deer year runs on day
+ * length, so the calendar sets the behavior (the rut lands the same weeks every year),
+ * and the weather sets whether they move in daylight. Each section leads with a short,
+ * do-this sentence; the longer detail is there if you want the reasoning.
  *
- * Consensus deer-woods knowledge: photoperiod-timed rut phases (Maine peak breeding
- * mid-November), cold fronts as the great daylight-movement trigger, warm spells
- * pushing movement to the dark, and the wind as both a scent problem and a bedding
- * cue. Guidance, honestly framed — it points you at the right setup for the day.
+ * Consensus deer-woods knowledge — guidance, not a guarantee.
  */
 
 private enum class DeerPhase(val label: String) {
@@ -36,12 +32,10 @@ private fun deerPhase(date: LocalDate): DeerPhase {
         m == 10 -> DeerPhase.PRE_RUT
         m == 11 && d <= 20 -> DeerPhase.RUT
         m == 11 -> DeerPhase.POST_RUT
-        m == 12 -> DeerPhase.LATE
         else -> DeerPhase.LATE
     }
 }
 
-/** Warm-for-the-season sends movement nocturnal; the threshold slides with the calendar. */
 private fun warmForSeason(airF: Double, month: Int): Boolean = when (month) {
     9 -> airF > 68
     10 -> airF > 60
@@ -60,103 +54,91 @@ internal fun whitetailPlan(
     val windows = windowsText(timing, Side.HUNT)
     val warm = warmForSeason(c.airF, date.monthValue)
 
-    val where = when (phase) {
-        DeerPhase.EARLY ->
-            "Deer are on a tight bed-to-food pattern right now. Find the food that's hot — acorns and beechnuts dropping, apples, green fields, or standing ag — and set up on the trails and staging cover just inside the woods from it. " +
-                "Evenings near the food, mornings back toward bedding. Bucks are still in bachelor groups and fairly predictable early, but they'll get nocturnal as the weeks pass and pressure builds."
+    val (whereBrief, whereMore) = when (phase) {
+        DeerPhase.EARLY -> Pair(
+            "Set up on the food. Early in the season deer follow a simple pattern — bed all day, then walk to food in the evening.",
+            "Find the food that's hot right now: acorns dropping, apples, or green fields. Sit just inside the woods on the trails leading to it. Evenings near the food are best; mornings, hunt closer to where they sleep (their bedding). As the weeks pass and they get pressured, big bucks start moving mostly at night.",
+        )
+        DeerPhase.PRE_RUT -> Pair(
+            "Hunt the travel routes between bedding and food. Bucks are starting to move more in daylight and check for the first does.",
+            "Look for a 'funnel' — a narrow strip of cover that squeezes deer travel, like a saddle in a ridge, a creek crossing, or a fence gap. Bucks cruise these looking for does. Fresh scrapes (bare dirt they paw up) and rubs (bark rubbed off saplings) tell you one is working the area.",
+        )
+        DeerPhase.RUT -> Pair(
+            "Hunt near the does. Bucks are chasing does to breed now, so they'll show up wherever the does are — bedding areas and the food nearby.",
+            "Camp on funnels and pinch points where a searching buck has to pass. If it goes quiet in the middle of the rut, a buck is probably tucked away with a doe ('lockdown') — sit tight near doe bedding and wait; he'll be back on his feet when she's done and he goes looking for the next one.",
+        )
+        DeerPhase.POST_RUT -> Pair(
+            "Go back to the food. The rut wore the bucks down and now they're hungry and rebuilding.",
+            "Hunt the best remaining food source hard, especially on cold afternoons when deer feed to stay warm. There's also a smaller 'second rut' in early December when leftover does come into heat, so a buck still checking doe groups is worth the wait.",
+        )
+        DeerPhase.LATE -> Pair(
+            "Hunt tight to the best food, in the afternoon. In the cold, deer bed close to food and move as little as possible.",
+            "Set up right on a high-calorie food source and the trails to it, and favor south-facing slopes that hold the day's warmth. The last two hours of daylight are the highest-odds sit of the day, as deer feed up before the cold night.",
+        )
+    }
+
+    val whenBrief = buildString {
+        append("Best window today is $windows. ")
+        when {
+            w.frontIncoming -> append("A cold front is coming in — that's the best deer-movement trigger there is. Get in the woods early and stay late; the first cold morning behind it is gold.")
+            warm && phase != DeerPhase.RUT -> append("It's warm for the season, so deer will mostly move after dark — hunt the very first and last light and keep expectations honest midday.")
+            phase == DeerPhase.RUT -> append("It's the rut, so a buck can move at any hour — mornings are best, but sitting all day is worth it.")
+            phase == DeerPhase.LATE -> append("Cold, calm afternoons pull deer to food before dark — the last two hours of light are your window.")
+            else -> append("Steady weather means the usual windows carry the day — first and last light near food.")
+        }
+    }
+    val whenMore =
+        "A cold front — a sharp drop in temperature — is the single best thing that can happen to a deer hunter. Deer feed heavily right before it arrives and get up and move in daylight in the cool air right after. Warm spells do the opposite: deer wear a heavy coat, so they overheat and shift their movement to the cool of night."
+
+    val howBrief = when (phase) {
+        DeerPhase.EARLY, DeerPhase.LATE ->
+            "Sit still and stay hidden. Slip in and out without deer seeing, hearing, or smelling you, and let them come to the food. Don't over-hunt a spot."
         DeerPhase.PRE_RUT ->
-            "Rubs and scrapes are showing up and bucks are on their feet more. Hunt the funnels, staging areas, and scrape lines between doe bedding and food — the pinch points a cruising buck uses to check things. " +
-                "Set up where terrain squeezes their travel: saddles, benches, inside corners, and creek crossings."
+            "Hunt a funnel with the wind in your favor. You can lightly rattle antlers together or blow a grunt call to pull a curious buck in."
         DeerPhase.RUT ->
-            "Bucks are cruising and chasing does now, and they'll show up anywhere the does are. Hunt near doe bedding and the food that feeds it, and camp on funnels and pinch points where a buck has to pass looking for the next hot doe. " +
-                "If it feels dead midday during peak breeding, that's lockdown — a buck is tucked with a doe. Hunt the fringes of doe bedding and wait him out; the next receptive doe puts him back on his feet."
+            "Be aggressive — sit longer, hunt funnels all day, and use calls. Rattling and grunting pull in cruising bucks. This is the best two weeks of the year."
         DeerPhase.POST_RUT ->
-            "The rut's worn them down and they're hungry — it's back to food. Hunt the best remaining food source hard, especially on cold afternoons. " +
-                "A minor second rut can flare in early December as unbred does cycle, so a buck still checking doe groups is worth the sit."
-        DeerPhase.LATE ->
-            "Survival mode: deer bed close to the best food and burn as little energy as possible. Hunt the food-to-bed connection, south-facing thermal cover on cold days, and set up tight to a high-calorie food source. " +
-                "Afternoons over food are the highest-odds sit of the day."
+            "Sit patiently on food. A soft grunt can still work on a buck hunting a late doe, but keep it low-key."
+    }
+    val howMore = buildString {
+        append(
+            if (w.windy) "It's windy, so deer feel exposed and will bed in sheltered spots out of the wind — hunt the calm, downwind side of ridges and thick cover. "
+            else "Above all, play the wind: set up so your scent blows away from where you expect the deer, not toward their bedding or the food. Deer live by their nose. ",
+        )
+        append(
+            when {
+                w.frontIncoming -> "With the front moving in, hunt between the bedding and the food — deer will be up early to feed before the weather turns."
+                warm -> "In the warmth, stay near cool, shaded bedding and catch them right at the edges of daylight."
+                else -> "The most common mistake is moving too much and too soon — get set and out-wait them."
+            },
+        )
     }
 
-    val whenBody = buildString {
-        append("Best windows today: $windows. ")
-        when {
-            w.frontIncoming ->
-                append("A cold front is dropping in, and that's the single best daylight-movement trigger there is. Deer feed hard ahead of it and again right after — the first cold, clear morning behind a front is prime; be in the tree early and stay late.")
-            warm && phase != DeerPhase.RUT ->
-                append("It's warm for the season, so expect most movement to happen after dark — hunt the very first and last light hard and keep expectations honest through the middle.")
-            warm && phase == DeerPhase.RUT ->
-                append("It's warm, which normally kills movement, but the rut can override the thermometer — a cruising buck will still travel midday. Sit longer than feels reasonable.")
-            phase == DeerPhase.RUT ->
-                append("It's the rut, so movement can happen any hour — mornings are best, but the all-day sit is worth it. Bucks cover ground looking for does when the woods seem empty.")
-            phase == DeerPhase.LATE ->
-                append("Cold, calm afternoons pull deer to food before dark — the last two hours of light are your window.")
-            else ->
-                append("Stable weather means the classic light windows carry the day — first and last light near food and cover.")
-        }
+    val whyBrief = when {
+        w.frontIncoming -> "The temperature drop before a front makes deer feed heavily, and the cool air behind it gets them moving in daylight."
+        warm -> "Deer wear a winter coat, so warm days overheat them — they feed at night and rest in the shade until dark."
+        phase == DeerPhase.RUT -> "Rut movement is driven by day length, not weather — bucks are compelled to search for does no matter the conditions, so all-day sits pay off now."
+        else -> "With calm weather, deer keep to their safe routine — feeding at first and last light and bedding through the day."
     }
-
-    val how = buildString {
-        // Movement style + setup.
-        when (phase) {
-            DeerPhase.EARLY, DeerPhase.LATE ->
-                append("This is a stand-hunting game: get in tight to food and travel without being seen, winded, or heard, and let them come. Access is everything — slip in and out without blowing out the bedding. ")
-            DeerPhase.PRE_RUT ->
-                append("Hunt aggressive but smart — a rub line or scrape funnel with the wind in your favor. Light rattling and a grunt can pull a curious buck this time of year; keep it subtle. ")
-            DeerPhase.RUT ->
-                append("Be aggressive: sit longer, hunt funnels all day, and use the calls — rattling and grunting draw cruising bucks, and a doe bleat can turn one. This is the two weeks to burn vacation days. ")
-            DeerPhase.POST_RUT ->
-                append("Back to a patient food-source sit; a light grunt or bleat can still work on a buck hunting a late doe, but don't overdo it. ")
-        }
-        // Wind — scent and bedding both.
-        when {
-            w.windy ->
-                append("It's windy, so deer will be edgy and bedded in the lee — hunt the sheltered side of ridges, thick leeward cover, and protected hollows where they feel safe, and use the wind and its noise to cover your movement. ")
-            else ->
-                append("Play the wind above all: set up so your scent blows away from where you expect deer, not toward the bedding or the food. ")
-        }
-        // Weather-driven urgency.
-        if (w.frontIncoming) {
-            append("With the front coming, hunt the transition between bedding and food — they'll be up and moving early to beat the weather.")
-        } else if (warm) {
-            append("In the warmth, stay downwind of shaded, cool bedding and catch them at the edges of daylight.")
-        } else {
-            append("Slow down, stay put, and out-sit them — the biggest mistake is moving too much and too soon.")
-        }
-    }
-
-    val why = when {
-        w.frontIncoming ->
-            "The pressure change and the temperature drop ahead of a front cue deer to feed heavily before it hits — and the cool, comfortable air behind it gets them up and moving in daylight. It's the closest thing to a sure bet in deer hunting."
-        warm ->
-            "Deer wear a winter coat by fall, so warm weather overheats them fast — they shift feeding to the cool of night and bed in shade through the day. Only the rut's breeding drive reliably overrides it."
-        phase == DeerPhase.RUT ->
-            "Rut movement is driven by day length, not weather — bucks are compelled to search for receptive does regardless of conditions, which is why midday sits and all-day funnels produce now when they'd be a waste any other time."
-        else ->
-            "With settled weather, deer fall back on their safe daily rhythm — feeding at the edges of light and bedding through the day — so hunting the food-to-bed connection at dawn and dusk is the percentage play."
-    }
+    val whyMore =
+        "Two things drive a deer's day: comfort and, in November, the urge to breed. Comfort explains the weather rules — they move when it's cool and hide when it's hot or windy. The breeding urge (the rut) is set by the shortening days, which is why mid-November produces daylight movement that no other time of year does, weather or not."
 
     val headline = when (phase) {
-        DeerPhase.EARLY ->
-            "Early season — deer are locked on food in a tight bed-to-feed pattern. Hunt the hot food source, evenings first."
-        DeerPhase.PRE_RUT ->
-            "Pre-rut — scrapes are opening and bucks are on their feet. Hunt the funnels between bedding and food."
-        DeerPhase.RUT ->
-            "The rut is on — bucks are cruising for does and can move any hour. Sit long, hunt funnels, use the calls."
-        DeerPhase.POST_RUT ->
-            "Post-rut — worn, hungry bucks are back on food. Hunt the best feed hard, especially cold afternoons."
-        DeerPhase.LATE ->
-            "Late season — it's all about food and warmth. Set up tight to a high-calorie food source for the afternoon."
+        DeerPhase.EARLY -> "Early season — deer are on a simple bed-to-food pattern. Hunt the best food source, evenings first."
+        DeerPhase.PRE_RUT -> "Pre-rut — bucks are starting to move in daylight. Hunt the travel routes between bedding and food."
+        DeerPhase.RUT -> "The rut is on — bucks are chasing does and can move any hour. Sit long, hunt funnels, use your calls."
+        DeerPhase.POST_RUT -> "Post-rut — tired, hungry bucks are back on the food. Hunt the best feed, especially cold afternoons."
+        DeerPhase.LATE -> "Late season — it's all about food and warmth. Set up tight to the best food for the afternoon sit."
     }
 
     return GamePlan(
         headline = headline,
         phaseLabel = phase.label,
         sections = listOf(
-            PlanSection(PlanKind.WHERE, "Where to set up", where),
-            PlanSection(PlanKind.WHEN, "When to hunt", whenBody),
-            PlanSection(PlanKind.HOW, "How to hunt it", how),
-            PlanSection(PlanKind.WHY, "Why", why),
+            PlanSection(PlanKind.WHERE, "Where", whereBrief, whereMore),
+            PlanSection(PlanKind.WHEN, "When", whenBrief, whenMore),
+            PlanSection(PlanKind.HOW, "How", howBrief, howMore),
+            PlanSection(PlanKind.WHY, "Why", whyBrief, whyMore),
         ),
     )
 }

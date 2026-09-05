@@ -7,23 +7,22 @@ import com.kairos.engine.Species
 import java.time.LocalDate
 
 /**
- * The "Game Plan" — Kairos's tactical brain. It reads three things into one
- * plain-spoken plan for the day: the **season phase** (what the animal or fish is
- * doing this time of year), the **weather posture** (how today's pressure, front,
- * wind, sky, and temperature stack up), and the **timing windows** (when to be out).
+ * The "Game Plan" — Kairos's tactical brain. It reads three things into one plan for
+ * the day: the **season phase** (what the animal or fish is doing this time of year),
+ * the **weather posture** (how today's pressure, front, wind, sky, and temperature
+ * stack up), and the **timing windows** (when to be out).
  *
- * The voice is deliberate: the way someone who has fished or hunted a place their
- * whole life would walk you through the day — specific, situational, and honest.
- * Not "pressure is 30.1 so fish are active," but "they'll pull up shallow to feed
- * on the last of the warm water — start with a topwater at first light, then…".
+ * The voice is plain and direct — the way someone who's fished or hunted a place their
+ * whole life would tell a beginner what to do, in words a beginner understands. Each
+ * section leads with **one clear, do-this sentence** (the [PlanSection.brief]); the
+ * longer [PlanSection.more] is there for anyone who wants the reasoning, but you never
+ * have to read it to know what to do today.
  *
- * Everything here is presentation grounded in established, consensus knowledge
- * (seasonal patterns, cold-front behavior, light windows). It never invents a
- * certainty; it points you in the right direction the way a good mentor would.
+ * It's honest guidance grounded in established, consensus knowledge — never a promise.
  */
 
 data class GamePlan(
-    /** The situational read — one or two sentences that frame the whole day. */
+    /** The one-punch read of the day — plain and short. */
     val headline: String,
     val phaseLabel: String,
     val sections: List<PlanSection>,
@@ -31,16 +30,13 @@ data class GamePlan(
 
 enum class PlanKind { WHERE, WHEN, HOW, WHY }
 
-data class PlanSection(val kind: PlanKind, val label: String, val body: String)
+/** One section: a short do-this [brief] and an optional longer [more] for the curious. */
+data class PlanSection(val kind: PlanKind, val label: String, val brief: String, val more: String)
 
-/**
- * A plain reading of today's weather, in the terms that actually change tactics.
- * These are the levers the per-species content reasons over.
- */
+/** A plain reading of today's weather, in the terms that actually change tactics. */
 internal class WeatherRead(c: Conditions) {
     val trend = c.pressureTrendInHg
     val falling = trend < -0.03
-    val fastFalling = trend < -0.06
     val rising = trend > 0.03
     val steady = !falling && !rising
     val pressure = c.pressureInHg
@@ -56,7 +52,7 @@ internal class WeatherRead(c: Conditions) {
     val overcast = c.cloudPct >= 55.0
     val partly = c.cloudPct in 25.0..55.0
     val clear = c.cloudPct < 25.0
-    /** The classic post-front "bluebird" day: high, clearing, rising — a tough bite. */
+    /** The post-front "bluebird" day: high, clearing, rising — a tough bite. */
     val bluebird = rising && highPressure && clear
     val airF = c.airF
     val waterF = c.waterF
@@ -66,8 +62,13 @@ internal class WeatherRead(c: Conditions) {
 internal fun windowsText(timing: DayTiming?, side: Side): String {
     if (timing == null) return "first light and the last hour before dark"
     val windows = timing.bestWindows(side)
-    if (windows.isEmpty()) return "first and last light — the odds hold fairly steady between"
-    return windows.joinToString(" and ") { "${hr(it.first)}–${hr(it.last + 1)}" }
+    if (windows.isEmpty()) return "first and last light"
+    val parts = windows.map { "${hr(it.first)}–${hr(it.last + 1)}" }
+    return when (parts.size) {
+        1 -> parts[0]
+        2 -> "${parts[0]} and ${parts[1]}"
+        else -> parts.dropLast(1).joinToString(", ") + ", and " + parts.last()
+    }
 }
 
 private fun hr(h24: Int): String {
@@ -78,9 +79,8 @@ private fun hr(h24: Int): String {
 }
 
 /**
- * Build the plan. Dispatches to the deep per-species content where it exists and
- * falls back to a still-true, trait-driven plan otherwise (never generic filler —
- * the fallback reasons from the same season/weather/timing levers).
+ * Build a species' plan. Deep content where it exists; a true, trait-driven plan
+ * otherwise (never filler — same season/weather/light reasoning).
  */
 fun buildGamePlan(sp: Species, c: Conditions, date: LocalDate, timing: DayTiming?): GamePlan {
     val w = WeatherRead(c)
@@ -90,3 +90,13 @@ fun buildGamePlan(sp: Species, c: Conditions, date: LocalDate, timing: DayTiming
         else -> genericPlan(sp, c, w, date, timing)
     }
 }
+
+/**
+ * The **general side plan** shown on the Fish / Hunt tab — a rough, plain idea of
+ * where to go and what to do today without picking a species. It's built on the most
+ * representative pattern for the side (bass for fishing, deer for hunting) but framed
+ * generally, so a beginner gets pointed in the right direction at a glance.
+ */
+fun buildSidePlan(side: Side, c: Conditions, date: LocalDate, timing: DayTiming?): GamePlan =
+    if (side == Side.FISH) generalFishPlan(c, WeatherRead(c), date, timing)
+    else generalHuntPlan(c, WeatherRead(c), date, timing)

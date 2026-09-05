@@ -26,6 +26,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -272,6 +276,7 @@ private fun GamePlanCard(plan: GamePlan) {
             color = KairosColors.Text,
             lineHeight = 24.sp,
         )
+        var expanded by remember(plan) { mutableStateOf(false) }
         plan.sections.forEach { s ->
             Spacer(Modifier.height(15.dp))
             Text(
@@ -282,9 +287,21 @@ private fun GamePlanCard(plan: GamePlan) {
                 fontWeight = FontWeight.SemiBold,
             )
             Spacer(Modifier.height(3.dp))
-            Text(s.body, style = MaterialTheme.typography.bodyMedium, color = KairosColors.Dim, lineHeight = 20.sp)
+            Text(s.brief, style = MaterialTheme.typography.bodyMedium, color = KairosColors.Text, lineHeight = 20.sp)
+            if (expanded && s.more.isNotBlank()) {
+                Spacer(Modifier.height(5.dp))
+                Text(s.more, style = MaterialTheme.typography.bodySmall, color = KairosColors.Dim, lineHeight = 19.sp)
+            }
         }
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(16.dp))
+        Text(
+            if (expanded) "Show less" else "Read more — the why behind it  ›",
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = KairosColors.Water,
+            modifier = Modifier.clickable { expanded = !expanded },
+        )
+        Spacer(Modifier.height(12.dp))
         Text(
             "Guidance from the season and today's conditions — not a guarantee.",
             style = MaterialTheme.typography.labelSmall,
