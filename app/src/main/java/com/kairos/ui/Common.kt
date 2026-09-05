@@ -13,8 +13,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.kairos.R
 import com.kairos.engine.Rating
 import java.time.Instant
@@ -46,6 +48,26 @@ internal fun RatingChip(rating: Rating) {
     ) {
         Text(ratingLabel(rating), style = MaterialTheme.typography.labelMedium, color = ratingColor(rating))
     }
+}
+
+/**
+ * A small uppercase kicker/overline — the app's one section-label voice. Tracked out,
+ * SemiBold, faint by default; pass a color for an accented section (e.g. the hero).
+ */
+@Composable
+internal fun Overline(
+    text: String,
+    color: Color = KairosColors.Faint,
+    modifier: Modifier = Modifier,
+) {
+    Text(
+        text.uppercase(),
+        style = MaterialTheme.typography.labelSmall,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = 1.6.sp,
+        color = color,
+        modifier = modifier,
+    )
 }
 
 internal fun ageText(savedAtMillis: Long): String {

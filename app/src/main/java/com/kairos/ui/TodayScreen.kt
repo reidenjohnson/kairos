@@ -112,19 +112,25 @@ private fun ForecastList(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = Space.screen),
+        verticalArrangement = Arrangement.spacedBy(Space.md),
     ) {
-        item { Spacer(Modifier.height(2.dp)) }
+        item { Spacer(Modifier.height(Space.xs)) }
         if (!ready.live && !refreshing) item { OfflineBanner(ready.savedAtMillis) }
-        item { Header(forecast, ready.savedAtMillis, ready.live) }
-        item { ConditionChips(forecast) }
+        // Header + conditions read as one context block (tight), set apart from the controls below.
+        item {
+            Column {
+                Header(forecast, ready.savedAtMillis, ready.live)
+                Spacer(Modifier.height(Space.md))
+                ConditionChips(forecast)
+            }
+        }
         item { SegmentedControl(sideFilter, onSelectSide) }
         forecast.timing?.let { t -> item { TimingCard(t, sideFilter) } }
         if (sideFilter != Side.FISH && forecast.legalShootingHours != null) {
             item { LegalLightCard(forecast) }
         }
-        item { SortRow(openCount) }
+        item { SectionHeader("Best today", "In season · $openCount") }
         items(primary) { row ->
             SpeciesCard(row, c, emphasized = row == primary.firstOrNull(), onOpenDetail = onOpenDetail)
         }
@@ -132,20 +138,32 @@ private fun ForecastList(
             item { GroupDivider("Out of season · ${secondary.size}") }
             items(secondary) { row -> OutOfSeasonRow(row, onOpenDetail) }
         }
-        item { Spacer(Modifier.height(20.dp)) }
+        item { Spacer(Modifier.height(Space.lg)) }
     }
 }
 
 @Composable
 private fun Header(f: Forecast, savedAtMillis: Long, live: Boolean) {
     Column {
-        Text(f.placeLabel, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
+        Overline(dateKicker(), color = KairosColors.Water)
+        Spacer(Modifier.height(Space.xs))
         Text(
-            "${if (live) "Updated" else "Cached"} ${timeText(savedAtMillis)} · tap ↻ to refresh",
+            f.placeLabel,
+            fontFamily = Bricolage,
+            fontSize = 30.sp,
+            fontWeight = FontWeight.ExtraBold,
+            letterSpacing = (-0.8).sp,
+            lineHeight = 34.sp,
+            color = KairosColors.Text,
+        )
+        Spacer(Modifier.height(Space.xs))
+        Text(
+            "${if (live) "Updated" else "Cached"} ${timeText(savedAtMillis)}  ·  pull to refresh",
             style = MaterialTheme.typography.bodySmall,
             color = KairosColors.Faint,
         )
         if (f.source == "NWS") {
+            Spacer(Modifier.height(Space.xs))
             Text(
                 "Backup source (NWS) — Open-Meteo unavailable; no timing curve",
                 style = MaterialTheme.typography.bodySmall,
@@ -153,6 +171,13 @@ private fun Header(f: Forecast, savedAtMillis: Long, live: Boolean) {
             )
         }
     }
+}
+
+/** "THU · SEP 5" — the header kicker (Overline uppercases it). */
+private fun dateKicker(): String {
+    val d = LocalDate.now()
+    val dow = d.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
+    return "$dow · ${monthDay(d)}"
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -258,39 +283,58 @@ private fun LegalLightCard(f: Forecast) {
     }
 }
 
+/** A section header: a short accent tick + tracked kicker on the left, meta on the right. */
 @Composable
-private fun SortRow(openCount: Int) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            "In season · $openCount",
-            style = MaterialTheme.typography.labelSmall,
-            color = KairosColors.Faint,
-            letterSpacing = 1.2.sp,
+private fun SectionHeader(title: String, trailing: String) {
+    Row(
+        Modifier.fillMaxWidth().padding(top = Space.xs),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier
+                .height(14.dp)
+                .width(3.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(KairosColors.Water),
         )
-        Text("Best today", style = MaterialTheme.typography.labelMedium, color = KairosColors.Dim)
+        Spacer(Modifier.width(Space.sm))
+        Overline(title, color = KairosColors.Dim)
+        Spacer(Modifier.weight(1f))
+        Text(trailing, style = MaterialTheme.typography.labelSmall, color = KairosColors.Faint)
     }
 }
 
 @Composable
 private fun SpeciesCard(row: SpeciesScore, c: Conditions, emphasized: Boolean, onOpenDetail: (String) -> Unit) {
     val status = seasonsFor(row.species.name)?.let { seasonStatus(it, today) }
+    val radius = if (emphasized) 22.dp else 18.dp
+    val shape = RoundedCornerShape(radius)
     val base = Modifier
         .fillMaxWidth()
-        .clip(RoundedCornerShape(18.dp))
+        .clip(shape)
         .clickable { onOpenDetail(row.species.name) }
     val styled = if (emphasized) {
         base
             .background(Brush.verticalGradient(listOf(KairosColors.CardTop, KairosColors.CardBottom)))
-            .border(1.dp, KairosColors.CardBorder, RoundedCornerShape(18.dp))
+            .border(1.dp, KairosColors.CardBorder, shape)
     } else {
         base
             .background(KairosColors.Surface)
-            .border(1.dp, KairosColors.Line, RoundedCornerShape(18.dp))
+            .border(1.dp, KairosColors.Line, shape)
     }
-    Column(styled.padding(16.dp)) {
+    Column(styled.padding(if (emphasized) 18.dp else 16.dp)) {
+        if (emphasized) {
+            Overline("Top pick today", color = KairosColors.Water)
+            Spacer(Modifier.height(Space.md))
+        }
         Row(verticalAlignment = Alignment.Top) {
             Column(Modifier.weight(1f)) {
-                Text(row.species.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(
+                    row.species.name,
+                    style = if (emphasized) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = KairosColors.Text,
+                )
                 if (status != null) {
                     Spacer(Modifier.height(5.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -309,17 +353,18 @@ private fun SpeciesCard(row: SpeciesScore, c: Conditions, emphasized: Boolean, o
                 Text(
                     "${row.percent}",
                     fontFamily = Bricolage,
-                    fontSize = 36.sp,
+                    fontSize = if (emphasized) 46.sp else 34.sp,
                     fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = (-1).sp,
+                    letterSpacing = (-1.5).sp,
+                    lineHeight = if (emphasized) 46.sp else 34.sp,
                     color = ratingColor(row.rating),
                 )
                 RatingPill(row.rating)
             }
         }
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(Space.md))
         ScoreBar(row.percent, ratingColor(row.rating))
-        Spacer(Modifier.height(11.dp))
+        Spacer(Modifier.height(Space.md))
         Text(whyFor(row.species, c), style = MaterialTheme.typography.bodyMedium, color = KairosColors.Dim, lineHeight = 19.sp)
     }
 }

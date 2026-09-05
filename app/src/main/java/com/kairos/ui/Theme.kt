@@ -11,6 +11,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 
 /**
  * Kairos palette. The brand is **light-first** (clean/calm for daylight use) with a
@@ -179,6 +180,21 @@ object ChartColors {
     val Grid get() = KairosColors.Line
     val Today get() = KairosColors.Faint // neutral, recessive reference line
     val Label get() = KairosColors.Dim
+}
+
+/**
+ * Spacing scale (8pt-based) so the whole app shares one rhythm instead of ad-hoc
+ * spacers. The intent: group related elements tightly ([xs]/[sm]), set sections
+ * apart generously ([lg]/[section]). [screen] is the horizontal page gutter.
+ */
+object Space {
+    val xs = 4.dp
+    val sm = 8.dp
+    val md = 12.dp
+    val lg = 16.dp
+    val xl = 24.dp
+    val section = 30.dp
+    val screen = 20.dp
 }
 
 private val DarkScheme = darkColorScheme(

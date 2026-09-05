@@ -3,6 +3,7 @@ package com.kairos.ui
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -52,27 +53,39 @@ fun TimingCard(timing: DayTiming, side: Side?) {
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(20.dp))
             .background(Brush.verticalGradient(listOf(KairosColors.HeroTop, KairosColors.HeroBottom)))
-            .border(1.dp, KairosColors.CardBorder, RoundedCornerShape(18.dp))
-            .padding(16.dp),
+            .border(1.dp, KairosColors.CardBorder, RoundedCornerShape(20.dp))
+            .padding(18.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(verticalAlignment = Alignment.Top) {
             Column(Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.labelSmall, color = KairosColors.Water, letterSpacing = 1.4.sp)
-                Spacer(Modifier.height(2.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        Modifier
+                            .height(12.dp)
+                            .width(3.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(KairosColors.Water),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(title, style = MaterialTheme.typography.labelSmall, color = KairosColors.Water, letterSpacing = 1.4.sp)
+                }
+                Spacer(Modifier.height(6.dp))
                 Text(
-                    if (windows.isEmpty()) "Steady all day" else "Best: " + windows.joinToString(" · ") { fmtWindow(it) },
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
+                    if (windows.isEmpty()) "Steady all day" else "Best  " + windows.joinToString("  ·  ") { fmtWindow(it) },
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = KairosColors.Text,
                 )
             }
+            Spacer(Modifier.width(12.dp))
             Column(horizontalAlignment = Alignment.End) {
-                Text("$dayScore", fontFamily = Bricolage, fontSize = 40.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-1).sp, color = ratingColor)
+                Text("$dayScore", fontFamily = Bricolage, fontSize = 44.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-1.5).sp, lineHeight = 44.sp, color = ratingColor)
                 Text(ratingLabel(rating(dayScore)).uppercase(), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = ratingColor, letterSpacing = 0.4.sp)
             }
         }
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(14.dp))
         TimingChart(timing, effSide, ratingColor)
     }
 }

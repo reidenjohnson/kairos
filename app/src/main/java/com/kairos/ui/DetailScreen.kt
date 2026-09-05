@@ -318,5 +318,15 @@ private fun SourcesCard(citations: List<Citation>, isFish: Boolean) {
 
 @Composable
 private fun SectionLabel(text: String) {
-    Text(text, style = MaterialTheme.typography.labelSmall, color = KairosColors.Faint, letterSpacing = 1.4.sp)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            Modifier
+                .height(12.dp)
+                .width(3.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(KairosColors.Water),
+        )
+        Spacer(Modifier.width(8.dp))
+        Overline(text, color = KairosColors.Dim)
+    }
 }
