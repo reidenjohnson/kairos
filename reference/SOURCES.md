@@ -304,3 +304,18 @@ days when calls carry and scent is controlled; a stiff wind or warm spell hurts.
 to scent-check, so the setup lives on the wind.
 - Mossy Oak, "Winter is the Best Time to Hunt Coyotes" — https://www.mossyoak.com/our-obsession/blogs/predator/winter-is-the-best-time-to-hunt-coyotes
 - Outdoor Life, "Best Weather For Coyotes" — https://www.outdoorlife.com/blogs/hunting-andrew-mckean/2011/01/best-weather-coyotes/
+
+---
+
+## Facts reference — rut phases & spawn windows (the in-app "facts you'd Google")
+
+The per-species Facts card is **date-based, not weather-based**: the rut runs on day length and the
+spawn runs on water temperature, so both land the same stretch every year (the timing, not whether an
+animal moves in daylight that day). Windows are the established regional consensus, cross-referenced
+with the behavioral and tactical sources above and the official Maine IF&W species pages each card
+links to. Highlights: whitetail peak breeding ~mid-November (photoperiod-driven, calendar-consistent);
+moose rut late Sep-early Oct; bass spawn ~60-65°F (May-June); walleye/pike spawn just after ice-out
+(40-50°F); coldwater trout/salmon/togue spawn Oct-November; crappie ~60-65°F and bluegill ~68-75°F in
+late spring/early summer. These are reference facts labeled as guidance, never a live prediction.
+- Maine IF&W species information pages (deer, moose, bear, turkey, migratory birds, fisheries "catch a
+  specific fish") — linked per species from the app's Facts card.

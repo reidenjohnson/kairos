@@ -102,6 +102,14 @@ fun DetailScreen(state: UiState, speciesName: String, onOpenSeason: (String) -> 
             species.side,
         ) { onOpenPlan(speciesName) }
 
+        val facts = factsFor(speciesName)
+        if (facts != null) {
+            Spacer(Modifier.height(20.dp))
+            SectionLabel(facts.title.uppercase())
+            Spacer(Modifier.height(8.dp))
+            FactsCard(facts)
+        }
+
         if (species.side == Side.HUNT && forecast.legalShootingHours != null) {
             Spacer(Modifier.height(16.dp))
             LegalLightLine(forecast)
@@ -311,6 +319,65 @@ private fun SourcesCard(citations: List<Citation>, isFish: Boolean) {
             color = KairosColors.Faint,
             lineHeight = 15.sp,
         )
+    }
+}
+
+@Composable
+private fun FactsCard(facts: SpeciesFacts) {
+    val uriHandler = LocalUriHandler.current
+    val today = java.time.LocalDate.now()
+    Column {
+        Text(facts.intro, style = MaterialTheme.typography.bodySmall, color = KairosColors.Dim, lineHeight = 17.sp)
+        Spacer(Modifier.height(10.dp))
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(KairosColors.Surface)
+                .border(1.dp, KairosColors.Line, RoundedCornerShape(18.dp))
+                .padding(vertical = 4.dp),
+        ) {
+            facts.facts.forEachIndexed { i, fact ->
+                if (i > 0) Box(Modifier.padding(horizontal = 16.dp).fillMaxWidth().height(1.dp).background(KairosColors.Line))
+                FactRow(fact, fact.isActive(today))
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .clickable { uriHandler.openUri(facts.officialUrl) }
+                .padding(horizontal = 4.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(facts.officialLabel, style = MaterialTheme.typography.bodyMedium, color = KairosColors.Water, modifier = Modifier.weight(1f))
+            Spacer(Modifier.width(10.dp))
+            Icon(Icons.Filled.OpenInNew, contentDescription = "Open", tint = KairosColors.Water, modifier = Modifier.size(16.dp))
+        }
+    }
+}
+
+@Composable
+private fun FactRow(fact: TimingFact, active: Boolean) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 11.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(fact.label, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, color = KairosColors.Text)
+            Spacer(Modifier.width(8.dp))
+            Text(fact.window, style = MaterialTheme.typography.labelMedium, color = KairosColors.Faint)
+            Spacer(Modifier.weight(1f))
+            if (active) {
+                Box(
+                    Modifier
+                        .background(KairosColors.Pine.copy(alpha = 0.18f), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 8.dp, vertical = 2.dp),
+                ) {
+                    Text("NOW", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = KairosColors.Pine, letterSpacing = 0.8.sp)
+                }
+            }
+        }
+        Spacer(Modifier.height(3.dp))
+        Text(fact.detail, style = MaterialTheme.typography.bodySmall, color = KairosColors.Dim, lineHeight = 17.sp)
     }
 }
 
