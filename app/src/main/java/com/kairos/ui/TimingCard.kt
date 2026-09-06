@@ -4,6 +4,9 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,10 +18,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,24 +39,30 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kairos.data.DayTiming
+import com.kairos.data.HourScore
 import com.kairos.engine.Side
 import com.kairos.engine.rating
+import java.time.LocalDate
 import java.time.LocalTime
+import kotlin.math.roundToInt
 
 /**
  * The Today hero: BOTH sides at a glance. Two gauges (Hunt + Fish) show each side's
- * day score and its best window; a shared chart plots the two hourly curves together
- * so you can read when each peaks. Tap a gauge to open that side's game plan. The
- * curves are colored by side identity — Hunt = Fern (forest), Fish = teal (water).
+ * day score and its best window; below them a shared, interactive chart plots the two
+ * hourly curves together. You can scroll across the next several days and drag a
+ * scrubber to read the score at any time. Tap a gauge to open that side's game plan.
+ * Curves are colored by side identity — Hunt = Fern (forest), Fish = teal (water).
  */
 @Composable
-fun TodayHero(timing: DayTiming, onOpenSide: (Side) -> Unit) {
+fun TodayHero(today: DayTiming, week: List<DayTiming>, onOpenSide: (Side) -> Unit) {
+    val days = week.ifEmpty { listOf(today) }
     Column(
         Modifier
             .fillMaxWidth()
@@ -58,25 +73,17 @@ fun TodayHero(timing: DayTiming, onOpenSide: (Side) -> Unit) {
             .padding(18.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier
-                    .height(12.dp)
-                    .width(3.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(KairosColors.Water),
-            )
+            Box(Modifier.height(12.dp).width(3.dp).clip(RoundedCornerShape(2.dp)).background(KairosColors.Water))
             Spacer(Modifier.width(8.dp))
             Overline("Today's outlook", color = KairosColors.Water)
         }
         Spacer(Modifier.height(14.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            SideGauge(Side.HUNT, timing, Modifier.weight(1f), onOpenSide)
-            SideGauge(Side.FISH, timing, Modifier.weight(1f), onOpenSide)
+            SideGauge(Side.HUNT, today, Modifier.weight(1f), onOpenSide)
+            SideGauge(Side.FISH, today, Modifier.weight(1f), onOpenSide)
         }
         Spacer(Modifier.height(16.dp))
-        Legend()
-        Spacer(Modifier.height(8.dp))
-        BothSidesChart(timing)
+        InteractiveTimingChart(days)
     }
 }
 
@@ -107,22 +114,8 @@ private fun SideGauge(side: Side, timing: DayTiming, modifier: Modifier, onOpenS
         Box(contentAlignment = Alignment.Center) {
             GaugeArc(score, rColor, Modifier.size(104.dp))
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    "$score",
-                    fontFamily = Bricolage,
-                    fontSize = 34.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = (-1.5).sp,
-                    lineHeight = 34.sp,
-                    color = rColor,
-                )
-                Text(
-                    ratingLabel(rating(score)).uppercase(),
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = rColor,
-                    letterSpacing = 0.6.sp,
-                )
+                Text("$score", fontFamily = Bricolage, fontSize = 34.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-1.5).sp, lineHeight = 34.sp, color = rColor)
+                Text(ratingLabel(rating(score)).uppercase(), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = rColor, letterSpacing = 0.6.sp)
             }
         }
         Spacer(Modifier.height(8.dp))
@@ -144,73 +137,126 @@ private fun GaugeArc(score: Int, color: Color, modifier: Modifier) {
         val inset = stroke / 2f + 2.dp.toPx()
         val arcSize = Size(size.width - inset * 2, size.height - inset * 2)
         val topLeft = Offset(inset, inset)
-        val start = 135f
-        val sweep = 270f
+        val start = 135f; val sweep = 270f
         drawArc(track, start, sweep, false, topLeft = topLeft, size = arcSize, style = Stroke(stroke, cap = StrokeCap.Round))
         drawArc(color, start, sweep * (score.coerceIn(0, 100) / 100f), false, topLeft = topLeft, size = arcSize, style = Stroke(stroke, cap = StrokeCap.Round))
     }
 }
 
+/**
+ * Both sides' hourly curves for a chosen day. A scrollable day strip picks the day;
+ * a draggable scrubber reads the Hunt/Fish score at any hour, with the peak windows
+ * shaded and (on today) a "now" line.
+ */
 @Composable
-private fun Legend() {
-    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        LegendItem("Hunt", KairosColors.Pine)
-        LegendItem("Fish", KairosColors.Water)
-        Spacer(Modifier.weight(1f))
-        Text("best times today", style = MaterialTheme.typography.labelSmall, color = KairosColors.Faint)
-    }
-}
+private fun InteractiveTimingChart(days: List<DayTiming>) {
+    var sel by remember { mutableIntStateOf(0) }
+    // Scrub position as a 0..1 fraction across the day; null = default (now / peak).
+    var scrub by remember(sel) { mutableStateOf<Float?>(null) }
 
-@Composable
-private fun LegendItem(label: String, color: Color) {
+    val day = days[sel.coerceIn(0, days.lastIndex)]
+    val isToday = day.date == LocalDate.now()
+    val byHour = remember(day) { day.hours.associateBy { it.hour } }
+    val nowFrac = LocalTime.now().let { (it.hour + it.minute / 60f) / 24f }
+    // Default readout: now on today, else the day's better peak hour.
+    val defaultHour = if (isToday) nowFrac.times(24f).roundToInt() else peakHour(day)
+    val activeHour = (scrub?.times(24f)?.roundToInt() ?: defaultHour).coerceIn(0, 23)
+    val huntAt = byHour[activeHour]?.huntScore ?: 0
+    val fishAt = byHour[activeHour]?.fishScore ?: 0
+
+    // Day strip.
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        days.forEachIndexed { i, d -> DayChip(d, i == sel) { sel = i; scrub = null } }
+    }
+    Spacer(Modifier.height(12.dp))
+
+    // Scrubber readout.
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(color))
-        Spacer(Modifier.width(5.dp))
-        Text(label, style = MaterialTheme.typography.labelSmall, color = KairosColors.Dim, fontWeight = FontWeight.SemiBold)
+        Text(fmtHour(activeHour), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = KairosColors.Text)
+        Spacer(Modifier.width(12.dp))
+        ReadoutDot("Hunt", huntAt, KairosColors.Pine)
+        Spacer(Modifier.width(12.dp))
+        ReadoutDot("Fish", fishAt, KairosColors.Water)
+        Spacer(Modifier.weight(1f))
+        Text(
+            if (scrub == null && isToday) "now · drag to explore" else "drag to explore",
+            style = MaterialTheme.typography.labelSmall,
+            color = KairosColors.Faint,
+        )
     }
-}
+    Spacer(Modifier.height(8.dp))
 
-/** Both sides' hourly curves on one set of axes, with dawn/dusk ticks and a now line. */
-@Composable
-private fun BothSidesChart(timing: DayTiming) {
-    val gridColor = KairosColors.Line
-    val nowColor = KairosColors.Water
     val huntColor = KairosColors.Pine
     val fishColor = KairosColors.Water
+    val gridColor = KairosColors.Line
+    val nowColor = KairosColors.Water
+    val scrubColor = KairosColors.Text
     val labelColor = KairosColors.Faint
-    val nowH = LocalTime.now().let { it.hour + it.minute / 60.0 }
+    val huntWin = day.bestWindows(Side.HUNT)
+    val fishWin = day.bestWindows(Side.FISH)
 
-    Canvas(Modifier.fillMaxWidth().height(120.dp)) {
-        val padL = 6.dp.toPx(); val padR = 6.dp.toPx(); val padT = 6.dp.toPx(); val padB = 18.dp.toPx()
-        val plotW = size.width - padL - padR
+    Canvas(
+        Modifier
+            .fillMaxWidth()
+            .height(130.dp)
+            .pointerInput(sel) {
+                detectHorizontalDragGestures { change, _ ->
+                    scrub = (change.position.x / size.width).coerceIn(0f, 1f)
+                }
+            }
+            .pointerInput(sel) {
+                detectTapGestures { off -> scrub = (off.x / size.width).coerceIn(0f, 1f) }
+            },
+    ) {
+        val padT = 6.dp.toPx(); val padB = 18.dp.toPx()
         val plotH = size.height - padT - padB
-        fun xOf(h: Double) = padL + (h / 24.0).toFloat() * plotW
+        val w = size.width
+        fun xOf(h: Double) = (h / 24.0).toFloat() * w
         fun yOf(v: Int) = padT + (1f - v / 100f) * plotH
 
-        // Dawn/dusk ticks (recessive).
-        listOf(timing.sunriseHour, timing.sunsetHour).forEach { s ->
+        // Peak-window shading (our "best times"), per side, low alpha.
+        fun shade(wins: List<IntRange>, color: Color) {
+            wins.forEach { win ->
+                val x0 = xOf(win.first.toDouble()); val x1 = xOf((win.last + 1).toDouble())
+                drawRect(color.copy(alpha = 0.10f), topLeft = Offset(x0, padT), size = Size(x1 - x0, plotH))
+            }
+        }
+        shade(huntWin, huntColor)
+        shade(fishWin, fishColor)
+
+        // Dawn/dusk ticks.
+        listOf(day.sunriseHour, day.sunsetHour).forEach { s ->
             drawLine(gridColor, Offset(xOf(s), padT), Offset(xOf(s), padT + plotH), strokeWidth = 1.5f)
         }
 
-        fun curve(pick: (com.kairos.data.HourScore) -> Int, color: Color) {
-            val pts = timing.hours.sortedBy { it.hour }.map { it.hour to pick(it) }
+        fun curve(pick: (HourScore) -> Int, color: Color) {
+            val pts = day.hours.sortedBy { it.hour }.map { it.hour to pick(it) }
             if (pts.size < 2) return
             val line = Path(); val area = Path()
             pts.forEachIndexed { i, (h, v) ->
                 val x = xOf(h.toDouble()); val y = yOf(v)
                 if (i == 0) { line.moveTo(x, y); area.moveTo(x, padT + plotH); area.lineTo(x, y) } else { line.lineTo(x, y); area.lineTo(x, y) }
             }
-            area.lineTo(xOf(pts.last().first.toDouble()), padT + plotH)
-            area.close()
+            area.lineTo(xOf(pts.last().first.toDouble()), padT + plotH); area.close()
             drawPath(area, Brush.verticalGradient(listOf(color.copy(alpha = 0.16f), color.copy(alpha = 0.01f))))
             drawPath(line, color, style = Stroke(width = 3.5f))
         }
         curve({ it.huntScore }, huntColor)
         curve({ it.fishScore }, fishColor)
 
-        if (nowH in 0.0..24.0) {
-            drawLine(nowColor, Offset(xOf(nowH), padT), Offset(xOf(nowH), padT + plotH), strokeWidth = 2f)
+        // Now line (only on today).
+        if (isToday && nowFrac in 0f..1f) {
+            drawLine(nowColor.copy(alpha = 0.5f), Offset(nowFrac * w, padT), Offset(nowFrac * w, padT + plotH), strokeWidth = 2f)
         }
+
+        // Scrubber: a solid line + dots on each curve at the active hour.
+        val sx = xOf(activeHour.toDouble())
+        drawLine(scrubColor, Offset(sx, padT), Offset(sx, padT + plotH), strokeWidth = 2.5f)
+        drawCircle(huntColor, 5.dp.toPx(), Offset(sx, yOf(huntAt)))
+        drawCircle(fishColor, 5.dp.toPx(), Offset(sx, yOf(fishAt)))
 
         val text = android.graphics.Paint().apply {
             color = labelColor.toArgb(); textSize = 9.sp.toPx(); isAntiAlias = true
@@ -220,6 +266,44 @@ private fun BothSidesChart(timing: DayTiming) {
             drawContext.canvas.nativeCanvas.drawText(fmtHourShort(h), xOf(h.toDouble()), size.height - 4.dp.toPx(), text)
         }
     }
+}
+
+@Composable
+private fun ReadoutDot(label: String, value: Int, color: Color) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(color))
+        Spacer(Modifier.width(5.dp))
+        Text("$label ", style = MaterialTheme.typography.labelMedium, color = KairosColors.Dim)
+        Text("$value", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = KairosColors.Text)
+    }
+}
+
+@Composable
+private fun DayChip(day: DayTiming, selected: Boolean, onClick: () -> Unit) {
+    val bg = if (selected) KairosColors.SegBottom else KairosColors.Surface.copy(alpha = 0.55f)
+    val fg = if (selected) KairosColors.OnSeg else KairosColors.Dim
+    Column(
+        Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(bg, RoundedCornerShape(10.dp))
+            .border(1.dp, if (selected) Color.Transparent else KairosColors.CardBorder, RoundedCornerShape(10.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(dayLabel(day.date), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = fg)
+    }
+}
+
+private fun peakHour(day: DayTiming): Int {
+    val h = day.hours.maxByOrNull { maxOf(it.huntScore, it.fishScore) } ?: return 12
+    return h.hour
+}
+
+private fun dayLabel(date: LocalDate): String {
+    if (date == LocalDate.now()) return "Today"
+    val dow = date.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
+    return "$dow ${date.dayOfMonth}"
 }
 
 private fun fmtWindow(w: IntRange): String = "${fmtHour(w.first)}–${fmtHour(w.last + 1)}"

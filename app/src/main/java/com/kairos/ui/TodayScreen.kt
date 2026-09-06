@@ -127,7 +127,7 @@ private fun ForecastList(
                 ConditionChips(forecast)
             }
         }
-        forecast.timing?.let { t -> item { TodayHero(t, onOpenSidePlan) } }
+        forecast.timing?.let { t -> item { TodayHero(t, forecast.weekTiming, onOpenSidePlan) } }
         if (forecast.legalShootingHours != null) {
             item { LegalLightCard(forecast) }
         }

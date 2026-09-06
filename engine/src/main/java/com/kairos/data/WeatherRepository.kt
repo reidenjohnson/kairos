@@ -47,6 +47,8 @@ data class Forecast(
     val sunset: String? = null,
     /** Today's hour-by-hour "best times" timing (null if not computed, e.g. from cache). */
     val timing: DayTiming? = null,
+    /** Hour-by-hour timing for today + the next several days, for the scrollable chart. */
+    val weekTiming: List<DayTiming> = emptyList(),
     /** Which weather service produced this forecast — "Open-Meteo" (primary) or "NWS" (backup). */
     val source: String = "Open-Meteo",
     /** This hour's precipitation rate (mm/hr); 0 when dry. Feeds the Game Plan's rain read. */
@@ -89,6 +91,7 @@ data class HourScore(val hour: Int, val huntScore: Int, val fishScore: Int)
  * that shape the curve. See [Forecast.timing].
  */
 data class DayTiming(
+    val date: LocalDate,
     val hours: List<HourScore>,
     val sunriseHour: Double,
     val sunsetHour: Double,
@@ -139,7 +142,7 @@ object WeatherRepository {
             "&hourly=temperature_2m,surface_pressure,wind_speed_10m,cloud_cover,precipitation" +
             "&current=temperature_2m,surface_pressure,wind_speed_10m,cloud_cover" +
             "&daily=sunrise,sunset" +
-            "&timezone=auto&past_days=1&forecast_days=2" +
+            "&timezone=auto&past_days=1&forecast_days=7" +
             "&temperature_unit=fahrenheit&wind_speed_unit=mph"
 
     /** Round to the nearest [step] — keeps the score steady when weather is roughly flat. */
@@ -259,23 +262,21 @@ object WeatherRepository {
         val waterF = SEBAGO_WATER_F.getValue(date.monthValue).toDouble()
         val moon = moonInfo(date)
 
-        // Sun times for the day (for legal shooting hours), local to the place.
-        var sunrise: String? = null
-        var sunset: String? = null
+        // Sun times per day (for legal shooting hours + the timing curves), local to the place.
+        val sunByDate = LinkedHashMap<LocalDate, Pair<String?, String?>>()
         root.optJSONObject("daily")?.let { daily ->
             val days = daily.optJSONArray("time")
             val rises = daily.optJSONArray("sunrise")
             val sets = daily.optJSONArray("sunset")
             if (days != null && rises != null && sets != null) {
                 for (k in 0 until days.length()) {
-                    if (days.getString(k).take(10) == date.toString()) {
-                        sunrise = rises.optString(k, null)
-                        sunset = sets.optString(k, null)
-                        break
-                    }
+                    val d = runCatching { LocalDate.parse(days.getString(k).take(10)) }.getOrNull() ?: continue
+                    sunByDate[d] = rises.optString(k, null) to sets.optString(k, null)
                 }
             }
         }
+        val sunrise: String? = sunByDate[date]?.first
+        val sunset: String? = sunByDate[date]?.second
 
         val conditions = Conditions(
             airF = airF,
@@ -307,6 +308,9 @@ object WeatherRepository {
             timing = runCatching {
                 computeDayTiming(times, temps, pressures, winds, clouds, date, sunrise, sunset, conditions)
             }.getOrNull(),
+            weekTiming = runCatching {
+                computeWeekTiming(times, temps, pressures, winds, clouds, sunByDate, date, 7)
+            }.getOrElse { emptyList() },
         )
     }
 
@@ -333,7 +337,10 @@ object WeatherRepository {
         date: LocalDate,
         sunriseIso: String?,
         sunsetIso: String?,
-        current: Conditions,
+        // Day-level "how good is the day" score. For today it's the live current
+        // conditions; for future days there is no "current," so pass null and the
+        // day score becomes the peak of that day's hourly curve per side.
+        current: Conditions?,
     ): DayTiming? {
         val srH = isoHour(sunriseIso) ?: return null
         val ssH = isoHour(sunsetIso) ?: return null
@@ -379,11 +386,44 @@ object WeatherRepository {
         if (hours.isEmpty()) return null
         val huntEnabled = enabledSpecies.filter { it.side == Side.HUNT }
         val fishEnabled = enabledSpecies.filter { it.side == Side.FISH }
-        val huntToday = if (huntEnabled.isEmpty()) 0
-            else (huntEnabled.map { score(it, current) }.average() * 100).roundToInt()
-        val fishToday = if (fishEnabled.isEmpty()) 0
-            else (fishEnabled.map { score(it, current) }.average() * 100).roundToInt()
-        return DayTiming(hours.sortedBy { it.hour }, srH, ssH, huntToday, fishToday)
+        val huntToday = when {
+            huntEnabled.isEmpty() -> 0
+            current != null -> (huntEnabled.map { score(it, current) }.average() * 100).roundToInt()
+            else -> hours.maxOf { it.huntScore }
+        }
+        val fishToday = when {
+            fishEnabled.isEmpty() -> 0
+            current != null -> (fishEnabled.map { score(it, current) }.average() * 100).roundToInt()
+            else -> hours.maxOf { it.fishScore }
+        }
+        return DayTiming(date, hours.sortedBy { it.hour }, srH, ssH, huntToday, fishToday)
+    }
+
+    /**
+     * Hour-by-hour timing for [days] days from [startDate], for the scrollable chart.
+     * Reuses [computeDayTiming] per day with that day's sun times; day scores are the
+     * peak of each day's curve (no "current" conditions for a future day).
+     */
+    private fun computeWeekTiming(
+        times: org.json.JSONArray,
+        temps: org.json.JSONArray,
+        pressures: org.json.JSONArray,
+        winds: org.json.JSONArray,
+        clouds: org.json.JSONArray,
+        sunByDate: Map<LocalDate, Pair<String?, String?>>,
+        startDate: LocalDate,
+        days: Int,
+    ): List<DayTiming> {
+        val out = ArrayList<DayTiming>()
+        for (d in 0 until days) {
+            val date = startDate.plusDays(d.toLong())
+            val (sr, ss) = sunByDate[date] ?: continue
+            val dt = runCatching {
+                computeDayTiming(times, temps, pressures, winds, clouds, date, sr, ss, current = null)
+            }.getOrNull()
+            if (dt != null) out.add(dt)
+        }
+        return out
     }
 
     private fun outlookUrl(place: Place, days: Int): String =
