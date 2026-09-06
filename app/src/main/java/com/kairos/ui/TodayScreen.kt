@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -167,12 +166,14 @@ fun SideSpeciesScreen(
     val rows = remember(forecast, side) { scoreAll(c).filter { it.species.side == side } }
         .filter { SpeciesPrefs.isEnabled(it.species.name) }
 
+    // The app bar already labels this "Hunt" / "Fish", so the page leads straight into
+    // the game plan and the species list — no repeated title.
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = Space.screen),
         verticalArrangement = Arrangement.spacedBy(Space.md),
     ) {
         item { Spacer(Modifier.height(Space.xs)) }
-        item { SideHeader(side, rows.size) }
+        item { SectionHeader("Game plan", "general idea") }
         item {
             GamePlanTeaser(buildSidePlan(side, c, today, forecast.timing, forecast.precipMmHr), side) {
                 onOpenSidePlan(side)
@@ -181,32 +182,9 @@ fun SideSpeciesScreen(
         if (rows.isEmpty()) {
             item { EmptySpeciesHint() }
         } else {
-            speciesSection("Species", rows, c, onOpenDetail, emphasizeFirst = true)
+            speciesSection("Species", rows, c, onOpenDetail)
         }
         item { Spacer(Modifier.height(Space.lg)) }
-    }
-}
-
-@Composable
-private fun SideHeader(side: Side, count: Int) {
-    Column {
-        Overline(if (side == Side.FISH) "Fishing" else "Hunting", color = KairosColors.Water)
-        Spacer(Modifier.height(Space.xs))
-        Text(
-            if (side == Side.FISH) "Fish" else "Hunt",
-            fontFamily = Bricolage,
-            fontSize = 30.sp,
-            fontWeight = FontWeight.ExtraBold,
-            letterSpacing = (-0.8).sp,
-            lineHeight = 34.sp,
-            color = KairosColors.Text,
-        )
-        Spacer(Modifier.height(Space.xs))
-        Text(
-            "$count species you're targeting, best-first",
-            style = MaterialTheme.typography.bodySmall,
-            color = KairosColors.Faint,
-        )
     }
 }
 
@@ -219,7 +197,6 @@ private fun androidx.compose.foundation.lazy.LazyListScope.speciesSection(
     rows: List<SpeciesScore>,
     c: Conditions,
     onOpenDetail: (String) -> Unit,
-    emphasizeFirst: Boolean = false,
 ) {
     if (rows.isEmpty()) return
     val primary = rows.filter { isPrimary(it.species.name) }
@@ -232,12 +209,75 @@ private fun androidx.compose.foundation.lazy.LazyListScope.speciesSection(
         "${rows.size} species"
     }
     item { SectionHeader(label, trailing) }
-    items(primary) { row ->
-        SpeciesCard(row, c, emphasized = emphasizeFirst && row == primary.firstOrNull(), onOpenDetail = onOpenDetail)
-    }
+    // Compact rows in one grouped card, so many species read as a tight list, not a stack
+    // of big cards. Tap a row for the full breakdown.
+    item { SpeciesList(primary, dim = false, onOpenDetail = onOpenDetail) }
     if (secondary.isNotEmpty()) {
         item { GroupDivider("Out of season · ${secondary.size}") }
-        items(secondary) { row -> OutOfSeasonRow(row, onOpenDetail) }
+        item { SpeciesList(secondary, dim = true, onOpenDetail = onOpenDetail) }
+    }
+}
+
+/** A tight, scannable list of species as compact rows inside one card. */
+@Composable
+private fun SpeciesList(rows: List<SpeciesScore>, dim: Boolean, onOpenDetail: (String) -> Unit) {
+    if (rows.isEmpty()) return
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(KairosColors.Surface)
+            .border(1.dp, KairosColors.Line, RoundedCornerShape(16.dp)),
+    ) {
+        rows.forEachIndexed { i, row ->
+            CompactSpeciesRow(row, dim, onOpenDetail)
+            if (i < rows.lastIndex) {
+                Box(Modifier.fillMaxWidth().padding(horizontal = 14.dp).height(1.dp).background(KairosColors.Line))
+            }
+        }
+    }
+}
+
+@Composable
+private fun CompactSpeciesRow(row: SpeciesScore, dim: Boolean, onOpenDetail: (String) -> Unit) {
+    val status = seasonsFor(row.species.name)?.let { seasonStatus(it, today) }
+    val nameColor = if (dim) KairosColors.Dim else KairosColors.Text
+    val scoreColor = if (dim) KairosColors.Faint else ratingColor(row.rating)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onOpenDetail(row.species.name) }
+            .padding(horizontal = 14.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(row.species.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, color = nameColor, maxLines = 1)
+            if (status != null) {
+                Spacer(Modifier.height(2.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(6.dp).clip(RoundedCornerShape(3.dp)).background(seasonDotColor(status.kind)))
+                    Spacer(Modifier.width(6.dp))
+                    Text(status.headline(), style = MaterialTheme.typography.labelSmall, color = KairosColors.Faint, maxLines = 1)
+                }
+            }
+            Spacer(Modifier.height(7.dp))
+            ScoreBar(row.percent, scoreColor)
+        }
+        Spacer(Modifier.width(14.dp))
+        Column(horizontalAlignment = Alignment.End) {
+            Text(
+                "${row.percent}",
+                fontFamily = Bricolage,
+                fontSize = 26.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = (-1).sp,
+                lineHeight = 26.sp,
+                color = scoreColor,
+            )
+            if (!dim) {
+                Text(ratingLabel(row.rating).uppercase(), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = scoreColor, letterSpacing = 0.4.sp)
+            }
+        }
     }
 }
 
@@ -527,26 +567,6 @@ private fun RatingPill(rating: Rating) {
             .padding(horizontal = 9.dp, vertical = 3.dp),
     ) {
         Text(ratingLabel(rating).uppercase(), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = color, letterSpacing = 0.4.sp)
-    }
-}
-
-@Composable
-private fun OutOfSeasonRow(row: SpeciesScore, onOpenDetail: (String) -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(KairosColors.Surface.copy(alpha = 0.5f))
-            .border(1.dp, KairosColors.Line, RoundedCornerShape(14.dp))
-            .clickable { onOpenDetail(row.species.name) }
-            .padding(horizontal = 16.dp, vertical = 13.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(row.species.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, color = KairosColors.Dim, modifier = Modifier.weight(1f))
-        val label = seasonsFor(row.species.name)?.let { seasonStatus(it, today).headline() } ?: ""
-        Text(label, style = MaterialTheme.typography.labelSmall, color = KairosColors.Faint)
-        Spacer(Modifier.width(12.dp))
-        Text("${row.percent}", fontFamily = Bricolage, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = KairosColors.Faint)
     }
 }
 
