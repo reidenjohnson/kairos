@@ -43,6 +43,7 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.material) // provides the Theme.MaterialComponents app/window theme
     implementation(libs.play.services.location)
+    implementation("androidx.work:work-runtime-ktx:2.10.0") // batched daily notification job
 
     val composeBom = platform(libs.androidx.compose.bom)
     implementation(composeBom)

@@ -6,8 +6,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import com.kairos.notify.NotificationScheduler
+import com.kairos.notify.Notifications
 import com.kairos.ui.KairosApp
 import com.kairos.ui.KairosColors
+import com.kairos.ui.NotifyPrefs
 import com.kairos.ui.SpeciesPrefs
 
 class MainActivity : ComponentActivity() {
@@ -32,6 +35,15 @@ class MainActivity : ComponentActivity() {
                 if (names == null) remove(SPECIES_KEY_ENABLED) else putStringSet(SPECIES_KEY_ENABLED, names)
             }.apply()
         }
+
+        // Restore the daily-reminders toggle, then persist + (re)schedule on change.
+        Notifications.ensureChannel(this)
+        NotifyPrefs.restore(prefs.getBoolean(NOTIFY_KEY_ENABLED, false))
+        if (NotifyPrefs.enabled) NotificationScheduler.schedule(this)
+        NotifyPrefs.onChange = { on ->
+            prefs.edit().putBoolean(NOTIFY_KEY_ENABLED, on).apply()
+            if (on) NotificationScheduler.schedule(this) else NotificationScheduler.cancel(this)
+        }
         enableEdgeToEdge()
         setContent {
             KairosApp(
@@ -47,5 +59,6 @@ class MainActivity : ComponentActivity() {
         const val THEME_PREFS = "kairos_theme"
         const val THEME_KEY_DARK = "dark"
         const val SPECIES_KEY_ENABLED = "species_enabled"
+        const val NOTIFY_KEY_ENABLED = "notify_enabled"
     }
 }

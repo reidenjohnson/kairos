@@ -1,5 +1,9 @@
 package com.kairos.ui
 
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -10,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -20,11 +25,13 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kairos.engine.SPECIES
 import com.kairos.engine.Side
+import com.kairos.notify.Notifications
 
 /**
  * Settings: the species filter. The user picks who they're after; only those species
@@ -80,7 +87,65 @@ fun SettingsScreen() {
         sideSection(Side.HUNT, "Hunt")
         sideSection(Side.FISH, "Fish")
 
+        item { Spacer(Modifier.height(Space.sm)) }
+        item { Overline("Reminders", modifier = Modifier.padding(top = Space.sm)) }
+        item { NotificationsCard() }
+
         item { Spacer(Modifier.height(Space.lg)) }
+    }
+}
+
+/**
+ * The daily-reminders toggle. Turning it on asks for the notification permission on
+ * Android 13+; only a granted result flips [NotifyPrefs] on (which schedules the job).
+ */
+@Composable
+private fun NotificationsCard() {
+    val context = LocalContext.current
+    val on = NotifyPrefs.enabled
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) NotifyPrefs.set(true)
+    }
+    val toggle: (Boolean) -> Unit = { want ->
+        when {
+            !want -> NotifyPrefs.set(false)
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !Notifications.canPost(context) ->
+                launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            else -> NotifyPrefs.set(true)
+        }
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(KairosColors.Surface, RoundedCornerShape(16.dp))
+            .padding(horizontal = Space.lg, vertical = 4.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().clickable { toggle(!on) }.padding(vertical = Space.md),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("Daily reminders", style = MaterialTheme.typography.bodyLarge, color = KairosColors.Text)
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    "One nudge a day: the best time to be out, plus a heads-up before a " +
+                        "moose or antlerless-deer lottery deadline closes.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = KairosColors.Dim,
+                    lineHeight = 17.sp,
+                )
+            }
+            Spacer(Modifier.width(Space.md))
+            Switch(
+                checked = on,
+                onCheckedChange = toggle,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = KairosColors.OnSeg,
+                    checkedTrackColor = KairosColors.Pine,
+                    uncheckedTrackColor = KairosColors.Surface2,
+                ),
+            )
+        }
     }
 }
 
