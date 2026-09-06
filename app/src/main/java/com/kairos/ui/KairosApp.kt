@@ -24,10 +24,8 @@ import androidx.compose.material.icons.outlined.EditCalendar
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.DarkMode
-import androidx.compose.material.icons.outlined.Forest
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.automirrored.outlined.ShowChart
-import androidx.compose.material.icons.outlined.WaterDrop
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -85,13 +83,11 @@ sealed interface UiState {
 private enum class Dest { TODAY, SEASONS, DEADLINES, WEEKLY, SETTINGS, DETAIL, PLAN }
 
 /**
- * One place in the app. [side] applies to TODAY; [seasonFocus] to SEASONS; [detailSpecies]
- * to DETAIL; the PLAN page uses [planSpecies] (a species plan) or [planSide] (a general
- * side plan).
+ * One place in the app. [seasonFocus] applies to SEASONS; [detailSpecies] to DETAIL;
+ * the PLAN page uses [planSpecies] (a species plan) or [planSide] (a general side plan).
  */
 private data class NavEntry(
     val dest: Dest,
-    val side: Side? = null,
     val seasonFocus: String? = null,
     val detailSpecies: String? = null,
     val planSpecies: String? = null,
@@ -146,7 +142,6 @@ fun KairosApp(onToggleTheme: (Boolean) -> Unit = {}) {
             }
         }
         val dest = current.dest
-        val side = current.side
 
         // System back: close the drawer first, else pop the nav stack.
         BackHandler(enabled = drawerState.isOpen || backStack.isNotEmpty()) {
@@ -214,9 +209,8 @@ fun KairosApp(onToggleTheme: (Boolean) -> Unit = {}) {
                 DrawerContent(
                     placeLabel = placeLabel,
                     current = dest,
-                    currentSide = side,
-                    onSelect = { d, s ->
-                        goTo(NavEntry(d, if (d == Dest.TODAY) s else null))
+                    onSelect = { d ->
+                        goTo(NavEntry(d))
                         scope.launch { drawerState.close() }
                     },
                     onToggleTheme = onToggleTheme,
@@ -224,11 +218,7 @@ fun KairosApp(onToggleTheme: (Boolean) -> Unit = {}) {
             },
         ) {
             val title = when (dest) {
-                Dest.TODAY -> when (side) {
-                    Side.HUNT -> "Hunt"
-                    Side.FISH -> "Fish"
-                    null -> "Today's Best"
-                }
+                Dest.TODAY -> "Today"
                 Dest.SEASONS -> "Seasons"
                 Dest.DEADLINES -> "Licenses & lotteries"
                 Dest.WEEKLY -> "Weekly outlook"
@@ -266,10 +256,8 @@ fun KairosApp(onToggleTheme: (Boolean) -> Unit = {}) {
                     when (dest) {
                         Dest.TODAY -> TodayScreen(
                             state = state,
-                            sideFilter = side,
                             refreshing = refreshing,
                             onRefresh = { reloadKey++ },
-                            onSelectSide = { current = current.copy(side = it) },
                             onOpenDetail = { species ->
                                 goTo(NavEntry(Dest.DETAIL, detailSpecies = species))
                             },
@@ -307,8 +295,7 @@ fun KairosApp(onToggleTheme: (Boolean) -> Unit = {}) {
 private fun DrawerContent(
     placeLabel: String,
     current: Dest,
-    currentSide: Side?,
-    onSelect: (Dest, Side?) -> Unit,
+    onSelect: (Dest) -> Unit,
     onToggleTheme: (Boolean) -> Unit,
 ) {
     ModalDrawerSheet(
@@ -337,26 +324,20 @@ private fun DrawerContent(
         }
         Spacer(Modifier.height(18.dp))
 
-        DrawerItem("Today's Best", Icons.Filled.Star, current == Dest.TODAY && currentSide == null) {
-            onSelect(Dest.TODAY, null)
-        }
-        DrawerItem("Hunt", Icons.Outlined.Forest, current == Dest.TODAY && currentSide == Side.HUNT) {
-            onSelect(Dest.TODAY, Side.HUNT)
-        }
-        DrawerItem("Fish", Icons.Outlined.WaterDrop, current == Dest.TODAY && currentSide == Side.FISH) {
-            onSelect(Dest.TODAY, Side.FISH)
+        DrawerItem("Today", Icons.Filled.Star, current == Dest.TODAY) {
+            onSelect(Dest.TODAY)
         }
         DrawerItem("Seasons", Icons.Filled.CalendarMonth, current == Dest.SEASONS) {
-            onSelect(Dest.SEASONS, null)
+            onSelect(Dest.SEASONS)
         }
         DrawerItem("Licenses & lotteries", Icons.Outlined.EditCalendar, current == Dest.DEADLINES) {
-            onSelect(Dest.DEADLINES, null)
+            onSelect(Dest.DEADLINES)
         }
         DrawerItem("Weekly outlook", Icons.AutoMirrored.Outlined.ShowChart, current == Dest.WEEKLY) {
-            onSelect(Dest.WEEKLY, null)
+            onSelect(Dest.WEEKLY)
         }
         DrawerItem("Settings", Icons.Outlined.Settings, current == Dest.SETTINGS) {
-            onSelect(Dest.SETTINGS, null)
+            onSelect(Dest.SETTINGS)
         }
 
         Spacer(Modifier.weight(1f))

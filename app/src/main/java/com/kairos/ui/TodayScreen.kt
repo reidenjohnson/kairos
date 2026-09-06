@@ -38,8 +38,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.kairos.advice.GamePlan
-import com.kairos.advice.buildSidePlan
 import com.kairos.data.Forecast
 import com.kairos.engine.Conditions
 import com.kairos.engine.Rating
@@ -53,18 +51,17 @@ import java.time.LocalDate
 import kotlin.math.roundToInt
 
 /**
- * The "Today" screen (Today's Best / Hunt / Fish, chosen by [sideFilter]). Shows
- * current conditions as chips, a segmented Best/Hunt/Fish control, then scores
- * best-first with the top pick emphasized and out-of-season species grouped below.
+ * The "Today" screen — one page showing BOTH sides. Current conditions as chips, a
+ * hero with the Hunt + Fish gauges and a shared timing chart, then the species scored
+ * best-first grouped by side (out-of-season species grouped below within each side).
+ * Tap a hero gauge for that side's plan; tap a species for its detail.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TodayScreen(
     state: UiState,
-    sideFilter: Side?,
     refreshing: Boolean,
     onRefresh: () -> Unit,
-    onSelectSide: (Side?) -> Unit,
     onOpenDetail: (String) -> Unit,
     onOpenSidePlan: (Side) -> Unit,
 ) {
@@ -76,7 +73,7 @@ fun TodayScreen(
             onRefresh = onRefresh,
             modifier = Modifier.fillMaxSize(),
         ) {
-            ForecastList(state, sideFilter, refreshing, onSelectSide, onOpenDetail, onOpenSidePlan)
+            ForecastList(state, refreshing, onOpenDetail, onOpenSidePlan)
         }
     }
 }
@@ -102,26 +99,17 @@ private fun isPrimary(speciesName: String): Boolean {
 @Composable
 private fun ForecastList(
     ready: UiState.Ready,
-    sideFilter: Side?,
     refreshing: Boolean,
-    onSelectSide: (Side?) -> Unit,
     onOpenDetail: (String) -> Unit,
     onOpenSidePlan: (Side) -> Unit,
 ) {
     val forecast = ready.forecast
     val c = forecast.conditions
-    val scoredAll = remember(forecast, sideFilter) { scoreAll(c, sideFilter) }
+    val scoredAll = remember(forecast) { scoreAll(c) }
     // Honor the species filter (reads SpeciesPrefs.enabled so this recomposes on change).
     val scored = scoredAll.filter { SpeciesPrefs.isEnabled(it.species.name) }
-    val primary = scored.filter { isPrimary(it.species.name) }
-    val secondary = scored.filter { !isPrimary(it.species.name) }
-    // Fish have no season table (open all year), so show a plain count for them and an
-    // "in season" count only where seasons apply (the hunt/best lists).
-    val hasSeasons = scored.any { seasonsFor(it.species.name) != null }
-    val openCount = scored.count {
-        seasonsFor(it.species.name)?.let { s -> seasonStatus(s, today).kind == SeasonStatusKind.OPEN } == true
-    }
-    val bestTrailing = if (hasSeasons) "In season · $openCount" else "${scored.size} species"
+    val hunt = scored.filter { it.species.side == Side.HUNT }
+    val fish = scored.filter { it.species.side == Side.FISH }
 
     LazyColumn(
         modifier = Modifier
@@ -131,7 +119,7 @@ private fun ForecastList(
     ) {
         item { Spacer(Modifier.height(Space.xs)) }
         if (!ready.live && !refreshing) item { OfflineBanner(ready.savedAtMillis) }
-        // Header + conditions read as one context block (tight), set apart from the controls below.
+        // Header + conditions read as one context block (tight), set apart from the hero below.
         item {
             Column {
                 Header(forecast, ready.savedAtMillis, ready.live)
@@ -139,34 +127,45 @@ private fun ForecastList(
                 ConditionChips(forecast)
             }
         }
-        item { SegmentedControl(sideFilter, onSelectSide) }
-        forecast.timing?.let { t -> item { TimingCard(t, sideFilter) } }
-        if (sideFilter != Side.FISH && forecast.legalShootingHours != null) {
+        forecast.timing?.let { t -> item { TodayHero(t, onOpenSidePlan) } }
+        if (forecast.legalShootingHours != null) {
             item { LegalLightCard(forecast) }
-        }
-        // General "where to go today" plan on the Fish / Hunt tabs — the rough idea
-        // without picking a species. (Best tab stays glanceable: hero + top pick.)
-        if (sideFilter != null) {
-            item { SectionHeader("Game plan", "general idea") }
-            item {
-                GamePlanTeaser(buildSidePlan(sideFilter, c, today, forecast.timing, forecast.precipMmHr), sideFilter) {
-                    onOpenSidePlan(sideFilter)
-                }
-            }
         }
         if (scored.isEmpty()) {
             item { EmptySpeciesHint() }
         } else {
-            item { SectionHeader("Best today", bestTrailing) }
-            items(primary) { row ->
-                SpeciesCard(row, c, emphasized = row == primary.firstOrNull(), onOpenDetail = onOpenDetail)
-            }
-            if (secondary.isNotEmpty()) {
-                item { GroupDivider("Out of season · ${secondary.size}") }
-                items(secondary) { row -> OutOfSeasonRow(row, onOpenDetail) }
-            }
+            speciesSection("Hunt", hunt, c, onOpenDetail)
+            speciesSection("Fish", fish, c, onOpenDetail)
         }
         item { Spacer(Modifier.height(Space.lg)) }
+    }
+}
+
+/**
+ * One side's species: a header (with an in-season count where seasons apply), the
+ * in-season/upcoming species best-first, then any out-of-season ones grouped below.
+ */
+private fun androidx.compose.foundation.lazy.LazyListScope.speciesSection(
+    label: String,
+    rows: List<SpeciesScore>,
+    c: Conditions,
+    onOpenDetail: (String) -> Unit,
+) {
+    if (rows.isEmpty()) return
+    val primary = rows.filter { isPrimary(it.species.name) }
+    val secondary = rows.filter { !isPrimary(it.species.name) }
+    val hasSeasons = rows.any { seasonsFor(it.species.name) != null }
+    val trailing = if (hasSeasons) {
+        val open = rows.count { seasonsFor(it.species.name)?.let { s -> seasonStatus(s, today).kind == SeasonStatusKind.OPEN } == true }
+        "In season · $open"
+    } else {
+        "${rows.size} species"
+    }
+    item { SectionHeader(label, trailing) }
+    items(primary) { row -> SpeciesCard(row, c, emphasized = false, onOpenDetail = onOpenDetail) }
+    if (secondary.isNotEmpty()) {
+        item { GroupDivider("Out of season · ${secondary.size}") }
+        items(secondary) { row -> OutOfSeasonRow(row, onOpenDetail) }
     }
 }
 
@@ -251,46 +250,6 @@ private fun Chip(value: String, label: String) {
         Text(value, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = KairosColors.Text)
         Spacer(Modifier.width(5.dp))
         Text(label, style = MaterialTheme.typography.labelMedium, color = KairosColors.Dim)
-    }
-}
-
-@Composable
-private fun SegmentedControl(side: Side?, onSelect: (Side?) -> Unit) {
-    val options = listOf<Pair<String, Side?>>("Best" to null, "Hunt" to Side.HUNT, "Fish" to Side.FISH)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(KairosColors.Surface)
-            .border(1.dp, KairosColors.Line, RoundedCornerShape(12.dp))
-            .padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        options.forEach { (label, value) ->
-            val selected = side == value
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(9.dp))
-                    .then(
-                        if (selected) {
-                            Modifier.background(Brush.verticalGradient(listOf(KairosColors.SegTop, KairosColors.SegBottom)))
-                        } else {
-                            Modifier
-                        },
-                    )
-                    .clickable { onSelect(value) }
-                    .padding(vertical = 9.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    label,
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (selected) KairosColors.OnSeg else KairosColors.Dim,
-                )
-            }
-        }
     }
 }
 
