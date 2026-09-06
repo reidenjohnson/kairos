@@ -76,15 +76,51 @@ a real lake-temp source or a user-entered reading. This is flagged in code.
 | Elk | .40 | .10 | .10 | .21 | .12 | .07 | — |
 | Black bear | .35 | .15 | .05 | .28 | .07 | .10 | — |
 | Snowshoe hare | .30 | .10 | .05 | .10 | .20 | .05 | .20 (inverse) |
+| Upland birds | .35 | .10 | .05 | .10 | .25 | .15 | — |
 | Waterfowl | .13 | .18 | .02 | .32 | .30 | .05 | — |
+| Wild turkey | .20 | .12 | .10 | .13 | .30 | .15 | — |
+| Coyote | .28 | .12 | .12 | .18 | .18 | .12 | — |
 | Largemouth bass | .23 | .40 | .20 | .08 | .05 | .04 | — |
 | Smallmouth bass | .23 | .40 | .20 | .08 | .05 | .04 | — |
-| Coldwater (salmon/togue/brookie) | .42 | .28 | .10 | .10 | .05 | .05 | — |
+| Brook trout | .45 | .25 | .10 | .10 | .05 | .05 | — |
+| Landlocked salmon | .40 | .28 | .10 | .10 | .06 | .06 | — |
+| Lake trout (togue) | .48 | .22 | .10 | .08 | .06 | .06 | — |
+| Northern pike | .22 | .34 | .16 | .12 | .10 | .06 | — |
+| Chain pickerel | .20 | .34 | .18 | .10 | .10 | .08 | — |
+| Yellow perch | .25 | .28 | .20 | .07 | .08 | .12 | — |
+| White perch | .24 | .28 | .18 | .08 | .10 | .12 | — |
+| Black crappie | .24 | .30 | .16 | .10 | .08 | .12 | — |
+| Panfish (sunfish) | .30 | .26 | .18 | .06 | .08 | .12 | — |
 | Walleye | .18 | .18 | .07 | .08 | .22 | .22 | .05 (new/full) |
 
-Rationale in one line each: game is temperature-and-front driven (moose most heat-sensitive);
-fish are pressure-trend driven with a water-temp suitability gate; ducks are front-and-wind;
-walleye is light-and-wind; moon only matters for hare and walleye, per the evidence above.
+Rationale by group (all weights sum to 1.0):
+
+- **Big game (deer, moose, elk, bear)** — temperature-and-front driven; moose is the most
+  heat-sensitive, bear the most front-triggered as it feeds up before denning.
+- **Snowshoe hare** — wind + an inverse moon term (bright nights suppress movement).
+- **Upland birds** — wind-and-cloud sensitive; calm, mild days scent and hold best.
+- **Waterfowl** — front-and-wind; new weather pushes migrants and wind keeps them working.
+- **Wild turkey** — wind is the dominant negative (turkeys hunt by eye and ear; moving cover
+  and roar both spook them and mute calling), with heavy overcast/rain a secondary suppressor;
+  temperature only matters at the extremes, and there is no cold-front trigger the way deer have.
+- **Coyote** — a cold-loving predator: cold and post-front conditions move it, and light wind
+  keeps a call audible; scored year-round since Maine has no closed daytime season.
+- **Bass (largemouth, smallmouth)** — pressure-trend driven with a water-temp suitability gate.
+- **Coldwater fish (brook trout, landlocked salmon, lake trout/togue)** — heavily temperature-
+  gated (a hard cliff in warm water); togue holds the coldest water so it weights temp highest,
+  brook trout next, salmon a touch less (it will chase smelt up into a trolling chop).
+- **Pike & pickerel** — cool-water ambush predators, strongly pressure-trend/front driven; they
+  feed hard as a front approaches. Pickerel's temperature window is wider (it bites through the ice).
+- **Perch, crappie, panfish** — pressure-and-cloud sensitive schooling fish; crappie is the most
+  front-shy (a bluebird post-front sky shuts it off), panfish the most simply warm-water driven.
+- **Walleye** — light-and-wind, with the only other non-zero moon term (new/full windows).
+- **Moon** stays near-zero everywhere except hare and walleye, per the evidence above.
+
+New-species tuning note: the eleven species added/split in this pass (turkey, coyote; the three
+coldwater fish; pike, pickerel, the two perch, crappie, panfish) are tuned from the same factor
+model and the established behavioral consensus below (and the general-behavior sources cited in
+the seasons/Game-Plan sections), not from a study that quantifies an exact weight — so the numbers
+are honest, defensible starting points in the shape of that consensus, not precise measurements.
 
 ---
 
@@ -141,3 +177,23 @@ is genuinely mixed — some reviews find a signal, peer-reviewed CPUE work finds
 temperature was a better predictor). We keep moon at near-zero weight except where evidence
 supports it (snowshoe hare, walleye new/full windows).
 - Springer, "No significant relationship between CPUE and solunar values" — https://link.springer.com/article/10.1007/s42452-023-05379-8
+
+**Wild turkey (wind-dominant):** turkeys hunt by sight and sound, so wind is the biggest
+suppressor — over ~10 mph they lean on their eyes, spook more easily, and gobblers stop
+strutting; over ~20-25 mph movement and calling both fall off. They favor calm, mild mornings
+and drop into sheltered hollows and field edges when it blows. This is why turkey weights wind
+highest, with overcast/rain secondary and no cold-front trigger like deer.
+- NWTF, "Roll With Weather Changes" — https://www.nwtf.org/content-hub/roll-with-weather-changes
+
+**Coyote (cold- and front-driven):** winter is the prime window — scarce food + breeding push
+coyotes to move and hunt through the day, and they respond best to cool temps (~20-50°F), light
+wind (calls carry, scent stays put), and stable-to-falling pressure; extreme heat and bitter
+cold both cut movement, and calling picks up right after a cold front passes. Scored year-round
+since Maine has no closed daytime season.
+- Mossy Oak, "Winter is the Best Time to Hunt Coyotes" — https://www.mossyoak.com/our-obsession/blogs/predator/winter-is-the-best-time-to-hunt-coyotes
+
+**Perch / crappie / panfish & pike / pickerel (pressure- and light-driven schooling/ambush
+fish):** these warm- and cool-water species are tuned from the same pressure-trend + water-temp
+model as bass; the yellow-perch feeding study above is the one controlled data point (it found no
+*direct* pressure effect, so trend is treated as a weather proxy for them too). Pike and pickerel
+are front-driven ambush feeders; crappie is the most shut down by a bright bluebird post-front sky.

@@ -84,6 +84,18 @@ private val TEMP_COLD = Citation(
     "Maine IF&W — coldwater fish temperatures",
     "https://www.maine.gov/ifw/fishing-boating/fishing/maine-fishing-guide/catch-specific-fish.html",
 )
+private val TURKEY_WIND = Citation(
+    "NWTF — turkeys, wind & weather",
+    "https://www.nwtf.org/content-hub/roll-with-weather-changes",
+)
+private val COYOTE_COLD = Citation(
+    "Mossy Oak — winter is prime for coyotes",
+    "https://www.mossyoak.com/our-obsession/blogs/predator/winter-is-the-best-time-to-hunt-coyotes",
+)
+private val PERCH_PRESSURE = Citation(
+    "VanderWeyst — yellow perch & barometric pressure",
+    "https://www.bemidjistate.edu/directory/wp-content/uploads/sites/16/2023/02/2014-VanderWeyst-D.-The-effect-of-barometric-pressure-on-feeding-activity-of-yellow-perch..pdf",
+)
 
 /** The most relevant sources per species, ordered by how much each factor drives its score. */
 fun citationsFor(speciesName: String): List<Citation> = when (speciesName) {
@@ -94,9 +106,19 @@ fun citationsFor(speciesName: String): List<Citation> = when (speciesName) {
     "Snowshoe hare" -> listOf(MOON_HARE, WIND_UPLAND, TEMP_GAME)
     "Upland birds" -> listOf(WIND_UPLAND, TEMP_GAME)
     "Waterfowl" -> listOf(FRONT_DUCK, WIND_DUCK)
+    "Wild turkey" -> listOf(TURKEY_WIND)
+    "Coyote" -> listOf(COYOTE_COLD)
     "Largemouth bass" -> listOf(TREND_FISH, TEMP_LM, RANGE_FISH)
     "Smallmouth bass" -> listOf(TREND_FISH, TEMP_SM, RANGE_FISH)
-    "Salmon / togue / brookie" -> listOf(TEMP_COLD, TREND_FISH, RANGE_FISH)
+    "Brook trout" -> listOf(TEMP_COLD, TREND_FISH, RANGE_FISH)
+    "Landlocked salmon" -> listOf(TEMP_COLD, TREND_FISH, RANGE_FISH)
+    "Lake trout (togue)" -> listOf(TEMP_COLD, TREND_FISH, RANGE_FISH)
+    "Northern pike" -> listOf(TREND_FISH, RANGE_FISH)
+    "Chain pickerel" -> listOf(TREND_FISH, RANGE_FISH)
+    "Yellow perch" -> listOf(PERCH_PRESSURE, TREND_FISH, RANGE_FISH)
+    "White perch" -> listOf(TREND_FISH, RANGE_FISH)
+    "Black crappie" -> listOf(TREND_FISH, RANGE_FISH)
+    "Panfish (sunfish)" -> listOf(TREND_FISH, RANGE_FISH)
     "Walleye" -> listOf(WIND_WALLEYE, CLOUD_WALLEYE, TREND_FISH)
     else -> emptyList()
 }

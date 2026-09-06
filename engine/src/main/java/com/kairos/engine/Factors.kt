@@ -41,7 +41,7 @@ sealed interface TempSpec {
     /** Warmwater fish: peaks at [ideal], falling off over [spread]. */
     data class Band(val ideal: Double, val spread: Double) : TempSpec
 
-    /** Salmon / togue / brookie: fine while cool, cliff above 62°F. */
+    /** Coldwater fish (trout / salmon / togue): fine while cool, cliff above 62°F. */
     data object Coldwater : TempSpec
 }
 
