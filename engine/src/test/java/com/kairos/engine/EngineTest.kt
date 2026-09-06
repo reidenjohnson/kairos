@@ -22,7 +22,7 @@ class EngineTest {
         moonIllum = 0.5,
     )
 
-    // name -> (raw total, rounded percent) from the Python reference.
+    // name -> (raw total, rounded percent) from the Python reference (gen_golden.py).
     private val golden = mapOf(
         "Whitetail deer" to (0.866730 to 87),
         "Moose" to (0.873919 to 87),
@@ -31,9 +31,19 @@ class EngineTest {
         "Snowshoe hare" to (0.593939 to 59),
         "Upland birds" to (0.692798 to 69),
         "Waterfowl" to (0.800020 to 80),
+        "Wild turkey" to (0.773323 to 77),
+        "Coyote" to (0.715378 to 72),
         "Largemouth bass" to (0.644424 to 64),
         "Smallmouth bass" to (0.658799 to 66),
-        "Salmon / togue / brookie" to (0.891045 to 89),
+        "Brook trout" to (0.897045 to 90),
+        "Landlocked salmon" to (0.893212 to 89),
+        "Lake trout (togue)" to (0.906879 to 91),
+        "Northern pike" to (0.781273 to 78),
+        "Chain pickerel" to (0.834387 to 83),
+        "Yellow perch" to (0.754091 to 75),
+        "White perch" to (0.736848 to 74),
+        "Black crappie" to (0.720606 to 72),
+        "Panfish (sunfish)" to (0.587515 to 59),
         "Walleye" to (0.729515 to 73),
     )
 
@@ -59,15 +69,15 @@ class EngineTest {
         }
     }
 
-    @Test fun coversElevenSpecies() {
-        assertEquals(11, SPECIES.size)
-        assertEquals(7, SPECIES.count { it.side == Side.HUNT })
-        assertEquals(4, SPECIES.count { it.side == Side.FISH })
+    @Test fun coversFullRoster() {
+        assertEquals(21, SPECIES.size)
+        assertEquals(9, SPECIES.count { it.side == Side.HUNT })
+        assertEquals(12, SPECIES.count { it.side == Side.FISH })
     }
 
     @Test fun scoreAllSortsBestFirstPerSide() {
         val hunt = scoreAll(conditions, Side.HUNT)
-        assertEquals(7, hunt.size)
+        assertEquals(9, hunt.size)
         assertTrue(hunt.all { it.species.side == Side.HUNT })
         assertEquals(hunt.map { it.percent }.sortedDescending(), hunt.map { it.percent })
         // Elk is the top hunt score in this scenario.

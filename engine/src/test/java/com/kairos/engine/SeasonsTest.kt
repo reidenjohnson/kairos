@@ -2,6 +2,7 @@ package com.kairos.engine
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
@@ -13,10 +14,18 @@ import java.time.LocalDate
  */
 class SeasonsTest {
 
-    @Test fun everyScoredSpeciesHasSeasons() {
-        for (sp in SPECIES) {
+    @Test fun everyHuntSpeciesHasSeasons() {
+        // Hunting seasons are tabled; fishing is intentionally not (open all year).
+        for (sp in SPECIES.filter { it.side == Side.HUNT }) {
             assertNotNull("missing seasons for ${sp.name}", seasonsFor(sp.name))
         }
+    }
+
+    @Test fun fishHaveNoSeasonTable() {
+        for (sp in SPECIES.filter { it.side == Side.FISH }) {
+            assertNull("fish should not be tabled: ${sp.name}", seasonsFor(sp.name))
+        }
+        assertTrue(MAINE_SEASONS.all { it.side == Side.HUNT })
     }
 
     @Test fun deerFirearmsOpenMidNovember() {
@@ -48,8 +57,18 @@ class SeasonsTest {
     }
 
     @Test fun weightsUnaffectedBySeasonsFile() {
-        // Sanity: seasons carry no scoring weight; species set is still 11.
-        assertEquals(11, SPECIES.size)
-        assertTrue(MAINE_SEASONS.size >= SPECIES.size)
+        // Sanity: seasons carry no scoring weight; the roster is the full 21.
+        assertEquals(21, SPECIES.size)
+        assertEquals(SPECIES.count { it.side == Side.HUNT }, MAINE_SEASONS.size)
+    }
+
+    @Test fun turkeyFallOpenInOctober() {
+        val turkey = seasonsFor("Wild turkey")!!
+        assertEquals(SeasonStatusKind.OPEN, seasonStatus(turkey, LocalDate.of(2026, 10, 15)).kind)
+    }
+
+    @Test fun coyoteOpenYearRound() {
+        val coyote = seasonsFor("Coyote")!!
+        assertEquals(SeasonStatusKind.OPEN, seasonStatus(coyote, LocalDate.of(2026, 2, 1)).kind)
     }
 }
