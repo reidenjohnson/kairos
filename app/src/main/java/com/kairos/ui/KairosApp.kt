@@ -82,7 +82,7 @@ sealed interface UiState {
     data class Error(val message: String) : UiState
 }
 
-private enum class Dest { TODAY, SPECIES, SEASONS, DEADLINES, WEEKLY, SETTINGS, DETAIL, PLAN }
+private enum class Dest { TODAY, SPECIES, WEATHER, SEASONS, DEADLINES, WEEKLY, SETTINGS, DETAIL, PLAN }
 
 /**
  * One place in the app. [seasonFocus] applies to SEASONS; [detailSpecies] to DETAIL;
@@ -228,6 +228,7 @@ fun KairosApp(onToggleTheme: (Boolean) -> Unit = {}) {
             val title = when (dest) {
                 Dest.TODAY -> "Today"
                 Dest.SPECIES -> if (current.listSide == Side.FISH) "Fish" else "Hunt"
+                Dest.WEATHER -> "Weather"
                 Dest.SEASONS -> "Seasons"
                 Dest.DEADLINES -> "Licenses & lotteries"
                 Dest.WEEKLY -> "Weekly outlook"
@@ -271,7 +272,9 @@ fun KairosApp(onToggleTheme: (Boolean) -> Unit = {}) {
                             onOpenDetail = { species ->
                                 goTo(NavEntry(Dest.DETAIL, detailSpecies = species))
                             },
+                            onOpenWeather = { goTo(NavEntry(Dest.WEATHER)) },
                         )
+                        Dest.WEATHER -> WeatherScreen(state = state)
                         Dest.SPECIES -> SideSpeciesScreen(
                             state = state,
                             side = current.listSide ?: Side.HUNT,

@@ -6,9 +6,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -65,6 +64,7 @@ fun TodayScreen(
     onRefresh: () -> Unit,
     onOpenSide: (Side) -> Unit,
     onOpenDetail: (String) -> Unit,
+    onOpenWeather: () -> Unit,
 ) {
     when (state) {
         is UiState.Loading -> Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
@@ -74,7 +74,7 @@ fun TodayScreen(
             onRefresh = onRefresh,
             modifier = Modifier.fillMaxSize(),
         ) {
-            ForecastList(state, refreshing, onOpenSide, onOpenDetail)
+            ForecastList(state, refreshing, onOpenSide, onOpenDetail, onOpenWeather)
         }
     }
 }
@@ -103,6 +103,7 @@ private fun ForecastList(
     refreshing: Boolean,
     onOpenSide: (Side) -> Unit,
     onOpenDetail: (String) -> Unit,
+    onOpenWeather: () -> Unit,
 ) {
     val forecast = ready.forecast
     val c = forecast.conditions
@@ -125,7 +126,7 @@ private fun ForecastList(
             Column {
                 Header(forecast, ready.savedAtMillis, ready.live)
                 Spacer(Modifier.height(Space.md))
-                ConditionChips(forecast)
+                WeatherCard(forecast, onOpenWeather)
             }
         }
         forecast.timing?.let { t -> item { TodayHero(t, forecast.weekTiming, onOpenSide) } }
@@ -296,31 +297,74 @@ private fun dateKicker(): String {
     return "$dow · ${monthDay(d)}"
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+/**
+ * The weather card — a single professional, tappable summary that replaces the old
+ * loose chip row: the current temp big, a moon read, the three inputs that move the
+ * score (pressure+trend, wind, cold front), and a footer of water + sun times. Tap to
+ * open the full [WeatherScreen].
+ */
 @Composable
-private fun ConditionChips(f: Forecast) {
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Chip("${"%.2f".format(f.pressureInHg)}\"", f.trendWord)
-        Chip("−${f.tempDropNext24hF.roundToInt()}°", "front/24h")
-        Chip("${f.windMph.roundToInt()} mph", "wind")
-        Chip("${f.airF.roundToInt()}°F", "air · water ~${f.waterF.roundToInt()}°")
-        Chip(moonGlyph(f.moonName), f.moonName)
+private fun WeatherCard(f: Forecast, onClick: () -> Unit) {
+    val fmt = java.time.format.DateTimeFormatter.ofPattern("h:mm a")
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .shadow(3.dp, RoundedCornerShape(18.dp), clip = false, spotColor = KairosColors.ShadowSpot, ambientColor = KairosColors.ShadowSpot)
+            .clip(RoundedCornerShape(18.dp))
+            .background(KairosColors.Surface)
+            .border(1.dp, KairosColors.Line, RoundedCornerShape(18.dp))
+            .clickable { onClick() }
+            .padding(16.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Overline("Weather", color = KairosColors.Water)
+            Spacer(Modifier.weight(1f))
+            Text("Details ›", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = KairosColors.Water)
+        }
+        Spacer(Modifier.height(Space.md))
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(
+                "${f.airF.roundToInt()}°",
+                fontFamily = Bricolage,
+                fontSize = 46.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = (-1.8).sp,
+                lineHeight = 46.sp,
+                color = KairosColors.Text,
+            )
+            Text("  air", style = MaterialTheme.typography.bodyMedium, color = KairosColors.Dim, modifier = Modifier.padding(bottom = 8.dp))
+            Spacer(Modifier.weight(1f))
+            Column(horizontalAlignment = Alignment.End) {
+                Text(moonGlyph(f.moonName), style = MaterialTheme.typography.titleMedium, color = KairosColors.Dim)
+                Text(f.moonName, style = MaterialTheme.typography.labelSmall, color = KairosColors.Faint)
+            }
+        }
+        Spacer(Modifier.height(Space.md))
+        Row(Modifier.fillMaxWidth()) {
+            WeatherMetric("%.2f\"".format(f.pressureInHg), "${trendArrow(f.pressureTrendInHg)} ${f.trendWord}")
+            WeatherMetric("${f.windMph.roundToInt()} mph", "wind")
+            WeatherMetric("−${f.tempDropNext24hF.roundToInt()}°", "front 24h")
+        }
+        Spacer(Modifier.height(Space.md))
+        Box(Modifier.fillMaxWidth().height(1.dp).background(KairosColors.Line))
+        Spacer(Modifier.height(Space.sm))
+        Text(
+            buildString {
+                append("Water ~${f.waterF.roundToInt()}°")
+                f.sunriseTime?.let { append("   ·   ↑ ${fmt.format(it)}") }
+                f.sunsetTime?.let { append("   ·   ↓ ${fmt.format(it)}") }
+            },
+            style = MaterialTheme.typography.labelSmall,
+            color = KairosColors.Faint,
+        )
     }
 }
 
 @Composable
-private fun Chip(value: String, label: String) {
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(KairosColors.Surface)
-            .border(1.dp, KairosColors.Line, RoundedCornerShape(10.dp))
-            .padding(horizontal = 10.dp, vertical = 7.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(value, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = KairosColors.Text)
-        Spacer(Modifier.width(5.dp))
-        Text(label, style = MaterialTheme.typography.labelMedium, color = KairosColors.Dim)
+private fun RowScope.WeatherMetric(value: String, label: String) {
+    Column(Modifier.weight(1f)) {
+        Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = KairosColors.Text)
+        Text(label, style = MaterialTheme.typography.labelSmall, color = KairosColors.Dim)
     }
 }
 
