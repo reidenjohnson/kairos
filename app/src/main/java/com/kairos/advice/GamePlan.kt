@@ -7,32 +7,32 @@ import com.kairos.engine.Species
 import java.time.LocalDate
 
 /**
- * The "Game Plan" — Kairos's tactical brain. It reads three things into one plan for
+ * The "Game Plan", Kairos's tactical brain. It reads three things into one plan for
  * the day: the **season phase** (what the animal or fish is doing this time of year),
  * the **weather posture** (how today's pressure, front, wind, sky, and temperature
  * stack up), and the **timing windows** (when to be out).
  *
- * The voice is plain and direct — the way someone who's fished or hunted a place their
+ * The voice is plain and direct, the way someone who's fished or hunted a place their
  * whole life would tell a beginner what to do, in words a beginner understands. Each
  * section leads with **one clear, do-this sentence** (the [PlanSection.brief]); the
  * longer [PlanSection.more] is there for anyone who wants the reasoning, but you never
  * have to read it to know what to do today.
  *
- * It's honest guidance grounded in established, consensus knowledge — never a promise.
+ * It's honest guidance grounded in established, consensus knowledge, never a promise.
  */
 
 /**
  * A plan has two layers. The **card** shows just [headline] + [tacticLine] + [whyBrief]
- * — three sentences: exactly what to do, what to throw or how to hunt it, and a quick
+ * three sentences: exactly what to do, what to throw or how to hunt it, and a quick
  * why. Tapping the card opens the full page, which lays out every [PlanSection] (the
  * detailed Where / When / How / Why). The card is built to *vary* day to day: the
  * headline and tactic fold in today's weather on top of the season.
  */
 data class GamePlan(
     val phaseLabel: String,
-    /** What to do and where — the punch. Weather + season aware. */
+    /** What to do and where, the punch. Weather + season aware. */
     val headline: String,
-    /** What to throw (fishing) or how to hunt it — a couple options and how to work them. */
+    /** What to throw (fishing) or how to hunt it: a couple options and how to work them. */
     val tacticLine: String,
     /** A one-sentence why. */
     val whyBrief: String,
@@ -92,7 +92,7 @@ internal class WeatherRead(c: Conditions, val precipMmHr: Double = 0.0) {
     val overcast = c.cloudPct >= 55.0
     val partly = c.cloudPct in 25.0..55.0
     val clear = c.cloudPct < 25.0
-    /** The post-front "bluebird" day: high, clearing, rising — a tough bite. */
+    /** The post-front "bluebird" day: high, clearing, rising, a tough bite. */
     val bluebird = rising && highPressure && clear
     val airF = c.airF
     val waterF = c.waterF
@@ -104,18 +104,18 @@ internal class WeatherRead(c: Conditions, val precipMmHr: Double = 0.0) {
 }
 
 /**
- * Today's weather posture — the single biggest lever on what to actually do. Every
+ * Today's weather posture, the single biggest lever on what to actually do. Every
  * plan reads this so the advice changes day to day, not just month to month:
- *  - FEEDING: a front is coming or pressure is dropping — a hard, short feeding window.
- *  - TOUGH: the bright, high-pressure "bluebird" day right after a front — a slow bite.
- *  - ROAMING: clouds and/or wind — they're up and hunting, so cover water.
- *  - STEADY: nothing pushing them — lean on the light windows.
+ *  - FEEDING: a front is coming or pressure is dropping, a hard, short feeding window.
+ *  - TOUGH: the bright, high-pressure "bluebird" day right after a front, a slow bite.
+ *  - ROAMING: clouds and/or wind, so they're up and hunting, so cover water.
+ *  - STEADY: nothing pushing them, so lean on the light windows.
  */
 internal enum class Mood { FEEDING, TOUGH, ROAMING, STEADY }
 
 internal fun WeatherRead.mood(): Mood = when {
     frontIncoming || falling -> Mood.FEEDING
-    lightRain -> Mood.ROAMING // rain dims the light and washes food in — they hunt
+    lightRain -> Mood.ROAMING // rain dims the light and washes food in, so they hunt
     bluebird -> Mood.TOUGH
     overcast || windy -> Mood.ROAMING
     else -> Mood.STEADY
@@ -143,7 +143,7 @@ private fun hr(h24: Int): String {
 
 /**
  * Build a species' plan. Deep content where it exists; a true, trait-driven plan
- * otherwise (never filler — same season/weather/light reasoning).
+ * otherwise (never filler, same season/weather/light reasoning).
  */
 fun buildGamePlan(sp: Species, c: Conditions, date: LocalDate, timing: DayTiming?, precipMmHr: Double = 0.0): GamePlan {
     val w = WeatherRead(c, precipMmHr)
@@ -174,7 +174,7 @@ fun buildGamePlan(sp: Species, c: Conditions, date: LocalDate, timing: DayTiming
 }
 
 /**
- * The **general side plan** shown on the Fish / Hunt tab — a rough, plain idea of
+ * The **general side plan** shown on the Fish / Hunt tab, a rough, plain idea of
  * where to go and what to do today without picking a species. It's built on the most
  * representative pattern for the side (bass for fishing, deer for hunting) but framed
  * generally, so a beginner gets pointed in the right direction at a glance.
