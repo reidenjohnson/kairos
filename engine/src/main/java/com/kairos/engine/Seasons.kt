@@ -91,17 +91,12 @@ private const val HUNT_URL =
 private const val WATERFOWL_SRC = "Maine IF&W — 2026-27 Migratory Game Bird Seasons"
 private const val WATERFOWL_URL =
     "https://www.maine.gov/ifw/hunting-trapping/hunting/laws-rules/migratory-gamebirds.html"
-private const val FISH_SRC = "Maine IF&W — Statewide General Fishing Laws"
-private const val FISH_URL =
-    "https://www.maine.gov/ifw/fishing-boating/fishing/laws-rules/statewide-laws.html"
-private const val SPECIAL_REGS_URL =
-    "https://www.maine.gov/ifw/fishing-boating/fishing/laws-rules/special-laws.html"
 
 /**
- * The season table. Species names match [SPECIES] so the UI can link a score row
- * to its seasons. Fishing entries use general-law South-Zone dates (Sebago's
- * zone) and point users to special regs, per the HANDOFF decision to skip the
- * exhaustive water-by-water rules.
+ * The season table — hunting only. Species names match [SPECIES] so the UI can link a
+ * score row to its seasons. Fishing is deliberately excluded: South-Zone waters are open
+ * all year under general law, so a season adds nothing and the real limits are water-by-
+ * water special regs we don't reproduce.
  */
 val MAINE_SEASONS: List<SpeciesSeasons> = listOf(
     SpeciesSeasons(
@@ -173,41 +168,28 @@ val MAINE_SEASONS: List<SpeciesSeasons> = listOf(
         disclaimer = "Dates shown are the South Zone (Sebago). North & Coastal zones differ — " +
             "set yearly by the federal migratory-bird framework. Federal + state duck stamps required.",
     ),
-    // ---- FISH: general-law, South Zone (Sebago). Special regs vary by water. ----
     SpeciesSeasons(
-        "Largemouth bass", Side.FISH,
-        listOf(SeasonWindow("Open water & ice (South Zone lakes/ponds)", d(2026, 1, 1), d(2026, 12, 31))),
-        FISH_SRC, FISH_URL,
-        disclaimer = "General law: South Zone lakes/ponds are open all year. Many waters have " +
-            "special bass length/bag limits — check your water's special regs.",
+        "Wild turkey", Side.HUNT,
+        listOf(
+            SeasonWindow("Fall (either-sex)", d(2026, 9, 14), d(2026, 11, 7), "Bag limit varies by WMD"),
+            SeasonWindow("Fall youth day", d(2026, 9, 12), d(2026, 9, 12)),
+        ),
+        HUNT_SRC, HUNT_URL,
+        disclaimer = "Fall 2026 dates shown. The spring (bearded-bird) season runs early May to " +
+            "early June — 2027 dates are set by IF&W; verify before you go. Bag limits vary by WMD.",
     ),
     SpeciesSeasons(
-        "Smallmouth bass", Side.FISH,
-        listOf(SeasonWindow("Open water & ice (South Zone lakes/ponds)", d(2026, 1, 1), d(2026, 12, 31))),
-        FISH_SRC, FISH_URL,
-        disclaimer = "General law: South Zone lakes/ponds are open all year. Many waters have " +
-            "special bass length/bag limits — check your water's special regs.",
+        "Coyote", Side.HUNT,
+        listOf(SeasonWindow("Daytime hunting (no closed season)", d(2026, 1, 1), d(2026, 12, 31))),
+        HUNT_SRC, HUNT_URL,
+        disclaimer = "No closed season and no bag limit for daytime coyote hunting. Night hunting " +
+            "(Dec 16-Aug 31) needs a coyote night-hunting permit. No hunting on Sundays.",
     ),
-    SpeciesSeasons(
-        "Salmon / togue / brookie", Side.FISH,
-        listOf(SeasonWindow("Open water & ice (South Zone lakes/ponds)", d(2026, 1, 1), d(2026, 12, 31))),
-        FISH_SRC, FISH_URL,
-        disclaimer = "General law: South Zone lakes/ponds are open all year (North Zone lakes: " +
-            "Apr 1-Sep 30). Coldwater species often carry special length/bag limits — check your " +
-            "water's special regs.",
-    ),
-    SpeciesSeasons(
-        "Walleye", Side.FISH,
-        listOf(SeasonWindow("Open water & ice (South Zone lakes/ponds)", d(2026, 1, 1), d(2026, 12, 31))),
-        FISH_SRC, FISH_URL,
-        disclaimer = "General law: South Zone lakes/ponds are open all year. Walleye are limited to " +
-            "specific waters in Maine — check your water's special regs.",
-    ),
+    // Fishing is intentionally left out: Maine's South-Zone lakes/ponds are open all year
+    // under general law, so a "season" adds nothing — real limits are water-by-water special
+    // regs we don't reproduce. The Seasons tab is hunting-only.
 )
 
-/** The special-regs page every fishing species should link to. */
-const val MAINE_FISHING_SPECIAL_REGS_URL = SPECIAL_REGS_URL
-
-/** Look up the seasons for an app species by name, or null if not tabled. */
+/** Look up the seasons for an app species by name, or null if not tabled (all fish). */
 fun seasonsFor(speciesName: String): SpeciesSeasons? =
     MAINE_SEASONS.firstOrNull { it.speciesName == speciesName }

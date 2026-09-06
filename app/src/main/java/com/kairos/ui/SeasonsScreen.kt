@@ -37,11 +37,9 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.kairos.engine.MAINE_FISHING_SPECIAL_REGS_URL
 import com.kairos.engine.MAINE_SEASONS
 import com.kairos.engine.SeasonStatusKind
 import com.kairos.engine.SeasonWindow
-import com.kairos.engine.Side
 import com.kairos.engine.SpeciesSeasons
 import com.kairos.engine.seasonStatus
 import com.kairos.engine.seasonsFor
@@ -58,18 +56,16 @@ import java.time.temporal.ChronoUnit
 @Composable
 fun SeasonsScreen(focusSpecies: String?) {
     val today = LocalDate.now()
-    var side by remember { mutableStateOf(Side.HUNT) }
     var sheetSpecies by remember { mutableStateOf<String?>(null) }
 
     // A deep-link from a species row opens straight into that species' card.
     LaunchedEffect(focusSpecies) {
-        if (focusSpecies != null) {
-            seasonsFor(focusSpecies)?.let { side = it.side }
-            sheetSpecies = focusSpecies
-        }
+        if (focusSpecies != null) sheetSpecies = focusSpecies
     }
 
-    val speciesList = MAINE_SEASONS.filter { it.side == side }
+    // Hunting only (fishing is open year-round, so it has no season table). Honor the
+    // species filter — reading SpeciesPrefs.isEnabled recomposes on change.
+    val speciesList = MAINE_SEASONS.filter { SpeciesPrefs.isEnabled(it.speciesName) }
 
     LazyColumn(
         modifier = Modifier
@@ -79,12 +75,15 @@ fun SeasonsScreen(focusSpecies: String?) {
     ) {
         item { Spacer(Modifier.height(Space.xs)) }
         item { SeasonsHeader() }
-        item { HuntFishSegment(side) { side = it } }
-        item { OpenNowCard(speciesList, today) }
-        item { SectionTick("The season at a glance") }
-        item { GlanceTimeline(speciesList, today) { sheetSpecies = it } }
-        item { SectionTick("Coming up") }
-        item { ComingUp(speciesList, today) { sheetSpecies = it } }
+        if (speciesList.isEmpty()) {
+            item { SeasonsEmptyHint() }
+        } else {
+            item { OpenNowCard(speciesList, today) }
+            item { SectionTick("The season at a glance") }
+            item { GlanceTimeline(speciesList, today) { sheetSpecies = it } }
+            item { SectionTick("Coming up") }
+            item { ComingUp(speciesList, today) { sheetSpecies = it } }
+        }
         item { Footer() }
         item { Spacer(Modifier.height(Space.lg)) }
     }
@@ -101,7 +100,7 @@ private fun SeasonsHeader() {
         Overline("Seasons", color = KairosColors.Water)
         Spacer(Modifier.height(Space.xs))
         Text(
-            "Maine seasons",
+            "Hunting seasons",
             fontFamily = Bricolage,
             fontSize = 30.sp,
             fontWeight = FontWeight.ExtraBold,
@@ -111,7 +110,7 @@ private fun SeasonsHeader() {
         )
         Spacer(Modifier.height(Space.xs))
         Text(
-            "General law · dates from Maine IF&W",
+            "Official dates from Maine IF&W",
             style = MaterialTheme.typography.bodySmall,
             color = KairosColors.Faint,
         )
@@ -138,38 +137,20 @@ private fun SectionTick(text: String) {
 }
 
 @Composable
-private fun HuntFishSegment(side: Side, onSelect: (Side) -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(KairosColors.Surface)
-            .border(1.dp, KairosColors.Line, RoundedCornerShape(12.dp))
-            .padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        listOf("Hunting" to Side.HUNT, "Fishing" to Side.FISH).forEach { (label, value) ->
-            val selected = side == value
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(9.dp))
-                    .then(
-                        if (selected) Modifier.background(Brush.verticalGradient(listOf(KairosColors.SegTop, KairosColors.SegBottom)))
-                        else Modifier,
-                    )
-                    .clickable { onSelect(value) }
-                    .padding(vertical = 9.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    label,
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (selected) KairosColors.OnSeg else KairosColors.Dim,
-                )
-            }
-        }
+private fun SeasonsEmptyHint() {
+    Column(Modifier.fillMaxWidth().padding(vertical = Space.xl)) {
+        Text(
+            "No species selected",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = KairosColors.Text,
+        )
+        Spacer(Modifier.height(Space.xs))
+        Text(
+            "Turn on the species you're after in Settings to see their seasons.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = KairosColors.Dim,
+        )
     }
 }
 
@@ -433,9 +414,6 @@ private fun SpeciesSeasonSheet(s: SpeciesSeasons, today: LocalDate, onDismiss: (
             Text("SOURCES", style = MaterialTheme.typography.labelSmall, color = KairosColors.Faint, letterSpacing = 1.4.sp)
             Spacer(Modifier.height(8.dp))
             LinkRow("Official season dates — ${s.sourceLabel}") { uriHandler.openUri(s.sourceUrl) }
-            if (s.side == Side.FISH) {
-                LinkRow("Check your water's special regs — Maine IF&W") { uriHandler.openUri(MAINE_FISHING_SPECIAL_REGS_URL) }
-            }
         }
     }
 }

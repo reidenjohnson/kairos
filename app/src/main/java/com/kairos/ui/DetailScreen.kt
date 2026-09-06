@@ -45,6 +45,7 @@ import com.kairos.data.Forecast
 import com.kairos.engine.SPECIES
 import com.kairos.engine.Side
 import com.kairos.engine.scoreAll
+import com.kairos.engine.seasonsFor
 import java.time.format.DateTimeFormatter
 
 /**
@@ -114,25 +115,28 @@ fun DetailScreen(state: UiState, speciesName: String, onOpenSeason: (String) -> 
             SourcesCard(citations, species.side == Side.FISH)
         }
 
-        Spacer(Modifier.height(16.dp))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
-                .background(KairosColors.Surface)
-                .border(1.dp, KairosColors.Line, RoundedCornerShape(14.dp))
-                .clickable { onOpenSeason(speciesName) }
-                .padding(horizontal = 16.dp, vertical = 15.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                "Season & regulations",
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = KairosColors.Text,
-                modifier = Modifier.weight(1f),
-            )
-            Text("View  →", style = MaterialTheme.typography.labelLarge, color = KairosColors.Water)
+        // Fishing has no season table (open all year), so only hunt species link out to Seasons.
+        if (seasonsFor(speciesName) != null) {
+            Spacer(Modifier.height(16.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(KairosColors.Surface)
+                    .border(1.dp, KairosColors.Line, RoundedCornerShape(14.dp))
+                    .clickable { onOpenSeason(speciesName) }
+                    .padding(horizontal = 16.dp, vertical = 15.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "Season & regulations",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = KairosColors.Text,
+                    modifier = Modifier.weight(1f),
+                )
+                Text("View  →", style = MaterialTheme.typography.labelLarge, color = KairosColors.Water)
+            }
         }
 
         Spacer(Modifier.height(28.dp))
