@@ -38,6 +38,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kairos.advice.buildSidePlan
 import com.kairos.data.Forecast
 import com.kairos.engine.Conditions
 import com.kairos.engine.Rating
@@ -51,10 +52,10 @@ import java.time.LocalDate
 import kotlin.math.roundToInt
 
 /**
- * The "Today" screen — one page showing BOTH sides. Current conditions as chips, a
- * hero with the Hunt + Fish gauges and a shared timing chart, then the species scored
- * best-first grouped by side (out-of-season species grouped below within each side).
- * Tap a hero gauge for that side's plan; tap a species for its detail.
+ * The "Today" screen — a clean hero, not a species dump. Current conditions, the Hunt +
+ * Fish gauges over a shared interactive timing chart, and a single "top pick right now"
+ * highlight. Tap a gauge to open that side's full species list; tap the top pick for its
+ * detail. The per-species lists live on the Hunt / Fish pages ([SideSpeciesScreen]).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,8 +63,8 @@ fun TodayScreen(
     state: UiState,
     refreshing: Boolean,
     onRefresh: () -> Unit,
+    onOpenSide: (Side) -> Unit,
     onOpenDetail: (String) -> Unit,
-    onOpenSidePlan: (Side) -> Unit,
 ) {
     when (state) {
         is UiState.Loading -> Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
@@ -73,7 +74,7 @@ fun TodayScreen(
             onRefresh = onRefresh,
             modifier = Modifier.fillMaxSize(),
         ) {
-            ForecastList(state, refreshing, onOpenDetail, onOpenSidePlan)
+            ForecastList(state, refreshing, onOpenSide, onOpenDetail)
         }
     }
 }
@@ -100,16 +101,16 @@ private fun isPrimary(speciesName: String): Boolean {
 private fun ForecastList(
     ready: UiState.Ready,
     refreshing: Boolean,
+    onOpenSide: (Side) -> Unit,
     onOpenDetail: (String) -> Unit,
-    onOpenSidePlan: (Side) -> Unit,
 ) {
     val forecast = ready.forecast
     val c = forecast.conditions
     val scoredAll = remember(forecast) { scoreAll(c) }
     // Honor the species filter (reads SpeciesPrefs.enabled so this recomposes on change).
     val scored = scoredAll.filter { SpeciesPrefs.isEnabled(it.species.name) }
-    val hunt = scored.filter { it.species.side == Side.HUNT }
-    val fish = scored.filter { it.species.side == Side.FISH }
+    // The single best bet right now — the one curated highlight the hero earns.
+    val topPick = scored.maxByOrNull { it.percent }
 
     LazyColumn(
         modifier = Modifier
@@ -127,17 +128,84 @@ private fun ForecastList(
                 ConditionChips(forecast)
             }
         }
-        forecast.timing?.let { t -> item { TodayHero(t, forecast.weekTiming, onOpenSidePlan) } }
+        forecast.timing?.let { t -> item { TodayHero(t, forecast.weekTiming, onOpenSide) } }
         if (forecast.legalShootingHours != null) {
             item { LegalLightCard(forecast) }
         }
-        if (scored.isEmpty()) {
+        if (topPick == null) {
             item { EmptySpeciesHint() }
         } else {
-            speciesSection("Hunt", hunt, c, onOpenDetail)
-            speciesSection("Fish", fish, c, onOpenDetail)
+            // One curated highlight (the card carries its own "Top pick today" label).
+            item { SpeciesCard(topPick, c, emphasized = true, onOpenDetail = onOpenDetail) }
         }
         item { Spacer(Modifier.height(Space.lg)) }
+    }
+}
+
+/**
+ * The Hunt or Fish page: that side's game plan, then its species scored best-first (top
+ * one emphasized), with out-of-season species grouped below. Reached from the Today
+ * hero's gauges or the drawer — this is where the per-species detail lives, off the hero.
+ */
+@Composable
+fun SideSpeciesScreen(
+    state: UiState,
+    side: Side,
+    onOpenDetail: (String) -> Unit,
+    onOpenSidePlan: (Side) -> Unit,
+) {
+    val ready = state as? UiState.Ready
+    if (ready == null) {
+        Box(Modifier.fillMaxSize(), Alignment.Center) {
+            if (state is UiState.Loading) CircularProgressIndicator() else Text("No forecast yet", color = KairosColors.Dim)
+        }
+        return
+    }
+    val forecast = ready.forecast
+    val c = forecast.conditions
+    val rows = remember(forecast, side) { scoreAll(c).filter { it.species.side == side } }
+        .filter { SpeciesPrefs.isEnabled(it.species.name) }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(horizontal = Space.screen),
+        verticalArrangement = Arrangement.spacedBy(Space.md),
+    ) {
+        item { Spacer(Modifier.height(Space.xs)) }
+        item { SideHeader(side, rows.size) }
+        item {
+            GamePlanTeaser(buildSidePlan(side, c, today, forecast.timing, forecast.precipMmHr), side) {
+                onOpenSidePlan(side)
+            }
+        }
+        if (rows.isEmpty()) {
+            item { EmptySpeciesHint() }
+        } else {
+            speciesSection("Species", rows, c, onOpenDetail, emphasizeFirst = true)
+        }
+        item { Spacer(Modifier.height(Space.lg)) }
+    }
+}
+
+@Composable
+private fun SideHeader(side: Side, count: Int) {
+    Column {
+        Overline(if (side == Side.FISH) "Fishing" else "Hunting", color = KairosColors.Water)
+        Spacer(Modifier.height(Space.xs))
+        Text(
+            if (side == Side.FISH) "Fish" else "Hunt",
+            fontFamily = Bricolage,
+            fontSize = 30.sp,
+            fontWeight = FontWeight.ExtraBold,
+            letterSpacing = (-0.8).sp,
+            lineHeight = 34.sp,
+            color = KairosColors.Text,
+        )
+        Spacer(Modifier.height(Space.xs))
+        Text(
+            "$count species you're targeting, best-first",
+            style = MaterialTheme.typography.bodySmall,
+            color = KairosColors.Faint,
+        )
     }
 }
 
@@ -150,6 +218,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.speciesSection(
     rows: List<SpeciesScore>,
     c: Conditions,
     onOpenDetail: (String) -> Unit,
+    emphasizeFirst: Boolean = false,
 ) {
     if (rows.isEmpty()) return
     val primary = rows.filter { isPrimary(it.species.name) }
@@ -162,7 +231,9 @@ private fun androidx.compose.foundation.lazy.LazyListScope.speciesSection(
         "${rows.size} species"
     }
     item { SectionHeader(label, trailing) }
-    items(primary) { row -> SpeciesCard(row, c, emphasized = false, onOpenDetail = onOpenDetail) }
+    items(primary) { row ->
+        SpeciesCard(row, c, emphasized = emphasizeFirst && row == primary.firstOrNull(), onOpenDetail = onOpenDetail)
+    }
     if (secondary.isNotEmpty()) {
         item { GroupDivider("Out of season · ${secondary.size}") }
         items(secondary) { row -> OutOfSeasonRow(row, onOpenDetail) }

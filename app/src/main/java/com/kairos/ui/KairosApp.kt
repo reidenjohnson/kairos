@@ -24,7 +24,9 @@ import androidx.compose.material.icons.outlined.EditCalendar
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.DarkMode
+import androidx.compose.material.icons.outlined.Forest
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.WaterDrop
 import androidx.compose.material.icons.automirrored.outlined.ShowChart
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -80,7 +82,7 @@ sealed interface UiState {
     data class Error(val message: String) : UiState
 }
 
-private enum class Dest { TODAY, SEASONS, DEADLINES, WEEKLY, SETTINGS, DETAIL, PLAN }
+private enum class Dest { TODAY, SPECIES, SEASONS, DEADLINES, WEEKLY, SETTINGS, DETAIL, PLAN }
 
 /**
  * One place in the app. [seasonFocus] applies to SEASONS; [detailSpecies] to DETAIL;
@@ -88,6 +90,7 @@ private enum class Dest { TODAY, SEASONS, DEADLINES, WEEKLY, SETTINGS, DETAIL, P
  */
 private data class NavEntry(
     val dest: Dest,
+    val listSide: Side? = null,
     val seasonFocus: String? = null,
     val detailSpecies: String? = null,
     val planSpecies: String? = null,
@@ -209,8 +212,13 @@ fun KairosApp(onToggleTheme: (Boolean) -> Unit = {}) {
                 DrawerContent(
                     placeLabel = placeLabel,
                     current = dest,
+                    currentSide = current.listSide,
                     onSelect = { d ->
                         goTo(NavEntry(d))
+                        scope.launch { drawerState.close() }
+                    },
+                    onSelectSide = { s ->
+                        goTo(NavEntry(Dest.SPECIES, listSide = s))
                         scope.launch { drawerState.close() }
                     },
                     onToggleTheme = onToggleTheme,
@@ -219,6 +227,7 @@ fun KairosApp(onToggleTheme: (Boolean) -> Unit = {}) {
         ) {
             val title = when (dest) {
                 Dest.TODAY -> "Today"
+                Dest.SPECIES -> if (current.listSide == Side.FISH) "Fish" else "Hunt"
                 Dest.SEASONS -> "Seasons"
                 Dest.DEADLINES -> "Licenses & lotteries"
                 Dest.WEEKLY -> "Weekly outlook"
@@ -258,12 +267,18 @@ fun KairosApp(onToggleTheme: (Boolean) -> Unit = {}) {
                             state = state,
                             refreshing = refreshing,
                             onRefresh = { reloadKey++ },
+                            onOpenSide = { s -> goTo(NavEntry(Dest.SPECIES, listSide = s)) },
                             onOpenDetail = { species ->
                                 goTo(NavEntry(Dest.DETAIL, detailSpecies = species))
                             },
-                            onOpenSidePlan = { s ->
-                                goTo(NavEntry(Dest.PLAN, planSide = s))
+                        )
+                        Dest.SPECIES -> SideSpeciesScreen(
+                            state = state,
+                            side = current.listSide ?: Side.HUNT,
+                            onOpenDetail = { species ->
+                                goTo(NavEntry(Dest.DETAIL, detailSpecies = species))
                             },
+                            onOpenSidePlan = { s -> goTo(NavEntry(Dest.PLAN, planSide = s)) },
                         )
                         Dest.SEASONS -> SeasonsScreen(focusSpecies = current.seasonFocus)
                         Dest.DEADLINES -> DeadlinesScreen()
@@ -295,7 +310,9 @@ fun KairosApp(onToggleTheme: (Boolean) -> Unit = {}) {
 private fun DrawerContent(
     placeLabel: String,
     current: Dest,
+    currentSide: Side?,
     onSelect: (Dest) -> Unit,
+    onSelectSide: (Side) -> Unit,
     onToggleTheme: (Boolean) -> Unit,
 ) {
     ModalDrawerSheet(
@@ -326,6 +343,12 @@ private fun DrawerContent(
 
         DrawerItem("Today", Icons.Filled.Star, current == Dest.TODAY) {
             onSelect(Dest.TODAY)
+        }
+        DrawerItem("Hunt", Icons.Outlined.Forest, current == Dest.SPECIES && currentSide == Side.HUNT) {
+            onSelectSide(Side.HUNT)
+        }
+        DrawerItem("Fish", Icons.Outlined.WaterDrop, current == Dest.SPECIES && currentSide == Side.FISH) {
+            onSelectSide(Side.FISH)
         }
         DrawerItem("Seasons", Icons.Filled.CalendarMonth, current == Dest.SEASONS) {
             onSelect(Dest.SEASONS)
