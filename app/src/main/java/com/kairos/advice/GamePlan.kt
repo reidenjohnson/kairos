@@ -121,6 +121,11 @@ fun buildGamePlan(sp: Species, c: Conditions, date: LocalDate, timing: DayTiming
     val w = WeatherRead(c, precipMmHr)
     return when (sp.name) {
         "Largemouth bass" -> largemouthPlan(sp, c, w, date, timing)
+        "Smallmouth bass" -> smallmouthPlan(sp, c, w, date, timing)
+        "Walleye" -> walleyePlan(sp, c, w, date, timing)
+        "Brook trout" -> brookTroutPlan(sp, c, w, date, timing)
+        "Landlocked salmon" -> landlockedSalmonPlan(sp, c, w, date, timing)
+        "Lake trout (togue)" -> lakeTroutPlan(sp, c, w, date, timing)
         "Whitetail deer" -> whitetailPlan(sp, c, w, date, timing)
         else -> genericPlan(sp, c, w, date, timing)
     }

@@ -197,3 +197,45 @@ fish):** these warm- and cool-water species are tuned from the same pressure-tre
 model as bass; the yellow-perch feeding study above is the one controlled data point (it found no
 *direct* pressure effect, so trend is treated as a weather proxy for them too). Pike and pickerel
 are front-driven ambush feeders; crappie is the most shut down by a bright bluebird post-front sky.
+
+---
+
+## Game Plan advice — per-species tactical patterns (the seasonal where/how)
+
+The season-phase location and lure guidance in each species' Game Plan is written from the
+established angling consensus (the sources in §C of the handoff plus reputable written sources),
+cross-referenced below. It is labeled guidance, not a guarantee.
+
+**Smallmouth bass (rock + crayfish; a wind fish):** smallmouth relate to hard bottom (rock,
+gravel, reefs) rather than weeds, eat crayfish and baitfish, run a little cooler than largemouth,
+and feed boldest in wind. Pre-spawn (water upper-40s to upper-50s) is the year's best big-fish
+window as they stage on rock outside the flats; summer fish lock onto main-lake rock, humps, and
+reefs; fall fish switch from crayfish to chasing baitfish shallower. Crankbaits (crawfish/fire-tiger),
+jerkbaits, spinnerbaits when active; tubes, drop-shots, Ned rigs, hair jigs, blade baits when tough.
+- BassResource, "Seasonal Habits of the Smallmouth Bass" — https://www.bassresource.com/fish_biology/smallmouth-seasonal-habits.html
+
+**Walleye (low-light specialist; the "walleye chop"):** a light-gathering eye (tapetum lucidum)
+that outperforms prey in dim water, so walleye feed hardest at dawn/dusk/dark and under wind, cloud,
+and stain, and slide deep on bright calm days. Spring/post-spawn fish work shallow rock, points, and
+weed edges in 6-14 ft (light jig + soft-plastic minnow; lipless in stain); summer fish hold deeper
+structure and weed edges (jigs, live-bait rigs, trolled harnesses/cranks); fall fish follow baitfish
+shallow and bite blade baits on drops and stickbaits after dark.
+- Wired2Fish, "How to Catch Walleye" — https://www.wired2fish.com/walleye/how-to-catch-walleye
+- Lurenet, "Spring Walleye Fishing Tactics" — https://www.lurenet.com/blog/spring-walleye-fishing-tactics-locating-jigging-rigging-early-season-eyes/
+
+**Coldwater fish — water temperature runs the year.** All three want cold, oxygen-rich water and
+scatter/feed shallow when the whole column is cold (spring ice-out and fall), then retreat to cold
+depths through summer.
+- **Brook trout:** prefer ~50-65°F and are stressed past the mid-60s (the most heat-sensitive
+  trout); shallow/surface and near inlets in spring and fall, pushed to spring holes and depth in
+  summer; spawn Oct-Nov over gravel/seeps. Small spinners, spoons, streamers, worms; trolled spoon.
+  - Maine IF&W, "How to Catch a Specific Fish" — https://www.maine.gov/ifw/fishing-boating/fishing/maine-fishing-guide/catch-specific-fish.html
+  - eatmorebrooktrout, "Water Temperature Effects on Brook Trout Behavior" — https://eatmorebrooktrout.com/water-temperature-seasonal-effects-on-brook-trout-behavior/
+- **Landlocked salmon:** smelt-chasers; surface and near shore at ice-out (best window) and again in
+  fall staging off tributary mouths, down to the thermocline (~30-50 ft) in summer. Smelt-imitating
+  streamers (Grey Ghost), thin spoons, stickbaits up high; lead core / downriggers deep.
+  - Maine IF&W, "Landlocked Salmon species information" — https://www.maine.gov/ifw/fish-wildlife/fisheries/species-information/landlocked-salmon.html
+- **Lake trout (togue):** ideal near 50°F on hard bottom; shallow briefly at ice-out, deep (below
+  ~45 ft, often 60-120) on rock structure in summer, onto rocky reefs/shoals (20-60 ft) to spawn in
+  fall. Flat-line trolling up high in spring; vertical jigging spoons/tubes on deep rock in summer.
+  - Mercury Marine, "Lake Trout Fishing Tactics for the Open-Water Season" — https://www.mercurymarine.com/us/en/lifestyle/dockline/lake-trout-fishing-by-the-season
