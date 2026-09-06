@@ -18,9 +18,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -306,7 +306,7 @@ private fun SourcesCard(citations: List<Citation>, isFish: Boolean) {
                     modifier = Modifier.weight(1f),
                 )
                 Spacer(Modifier.width(10.dp))
-                Icon(Icons.Filled.OpenInNew, contentDescription = "Open", tint = KairosColors.Water, modifier = Modifier.size(16.dp))
+                Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open", tint = KairosColors.Water, modifier = Modifier.size(16.dp))
             }
         }
     }
@@ -353,7 +353,7 @@ private fun FactsCard(facts: SpeciesFacts) {
         ) {
             Text(facts.officialLabel, style = MaterialTheme.typography.bodyMedium, color = KairosColors.Water, modifier = Modifier.weight(1f))
             Spacer(Modifier.width(10.dp))
-            Icon(Icons.Filled.OpenInNew, contentDescription = "Open", tint = KairosColors.Water, modifier = Modifier.size(16.dp))
+            Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open", tint = KairosColors.Water, modifier = Modifier.size(16.dp))
         }
     }
 }
