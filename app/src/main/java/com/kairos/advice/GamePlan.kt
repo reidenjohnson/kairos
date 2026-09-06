@@ -161,6 +161,14 @@ fun buildGamePlan(sp: Species, c: Conditions, date: LocalDate, timing: DayTiming
         "Black crappie" -> blackCrappiePlan(sp, c, w, date, timing)
         "Panfish (sunfish)" -> sunfishPlan(sp, c, w, date, timing)
         "Whitetail deer" -> whitetailPlan(sp, c, w, date, timing)
+        "Moose" -> moosePlan(sp, c, w, date, timing)
+        "Elk" -> elkPlan(sp, c, w, date, timing)
+        "Black bear" -> blackBearPlan(sp, c, w, date, timing)
+        "Snowshoe hare" -> snowshoeHarePlan(sp, c, w, date, timing)
+        "Upland birds" -> uplandPlan(sp, c, w, date, timing)
+        "Waterfowl" -> waterfowlPlan(sp, c, w, date, timing)
+        "Wild turkey" -> wildTurkeyPlan(sp, c, w, date, timing)
+        "Coyote" -> coyotePlan(sp, c, w, date, timing)
         else -> genericPlan(sp, c, w, date, timing)
     }
 }

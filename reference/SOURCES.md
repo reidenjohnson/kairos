@@ -254,3 +254,53 @@ yellow perch and bluegill feed by day nearer the bottom and cover. Small jigs, m
 spoons; slow fall in cold water; crappie is the most bluebird-shy of the group.
 - DSG Outerwear, "The Ultimate Panfish Guide: Catching Crappie and Bluegill Year-Round" — https://www.dsgouterwear.com/blogs/news/the-ultimate-panfish-guide-catching-crappie-and-bluegill-year-round
 - Black Lake NY, "Locating Black Lake Fish" (perch/crappie/bluegill seasonal location) — https://blacklakeny.com/locating-black-lake-fish/
+
+### Hunt species
+
+**Moose & elk (heat-sensitive rut cervids):** the rut (late Sep-early Oct moose; Sep elk) is set by
+day length and makes calling work; both overheat badly, so cool/damp/post-front weather moves them
+and warm weather pins them to shade/water and the night. (Elk are not a Maine game species; the plan
+is honest general western-elk guidance for the score.)
+- Northwoods Sporting Journal, "Moose Hunting: Different Seasons, Different Tactics" — https://www.sportingjournal.com/moose-hunting-different-seasons-different-tactics/
+- Jason Tomeo Outdoors, "How To Hunt Maine Moose During The Rut" — https://jasontomeoutdoors.com/how-to-hunt-maine-moose-rut/
+- Outdoor Canada, "Elk & weather" — https://www.outdoorcanada.ca/elkweather/
+
+**Black bear (food-driven, crepuscular, scent-wary):** fall is a feeding push to fatten before
+denning; bait and berries early, hard mast (acorns/beechnuts) later. Most active early morning/late
+evening (evening best on bait), pinned to shade/dark by heat, and ruled by wind because they hunt by
+nose. Cool, damp weather moves them earlier.
+- Bangor Daily News, "How to set up a successful bear bait site in Maine" — https://www.bangordailynews.com/2026/07/24/outdoors/how-to-set-up-bear-bait-site-maine-joam40zk0w/
+- Dive Bomb Industries, "Black Bear Hunting in Maine" — https://www.divebombindustries.com/blogs/news/black-bear-hunting-in-maine-best-state-for-bear-hunting
+
+**Snowshoe hare (thick cover, dogs/snow):** live in dense young softwoods, cedar swamps, and regrowth;
+hold tight and flush close; run big circles ahead of beagles (post the runs); 3-5 in. of fresh snow
+makes tracking. A bright moon lets them feed at night and sit tighter by day (the app's inverse-moon term).
+- Bangor Daily News, "With patience and the right strategy, you can track hares in the snow" — https://www.bangordailynews.com/2026/01/18/outdoors/hunting/tracking-hares-winter-woods-joam40zk0w/
+- Dive Bomb Industries, "Rabbit Hunting in Maine: Northwoods Snowshoe Strategies" — https://www.divebombindustries.com/blogs/news/rabbit-hunting-in-maine-northwoods-snowshoe-strategies
+
+**Upland birds (grouse & woodcock — edge cover, scenting):** edge specialists of young/thick cover
+(alder, aspen, orchards); cool, damp, lightly-breezy weather holds scent for dogs and settles birds,
+while hot/dry/windy scatters scent and makes them flush wild; October cold fronts drop fresh woodcock
+flights. Pause often, because grouse flush when you stop.
+- Project Upland, "Hunting Ruffed Grouse in the Rain" — https://projectupland.com/grouse-species/ruffed-grouse-hunting/how-to-hunt-northwoods-ruffed-grouse-in-the-rain/
+- Minnesota DNR, "Hunting ruffed grouse and woodcock" — https://www.dnr.state.mn.us/gohunting/ruffed-grouse-and-woodcock-hunting.html
+
+**Waterfowl (ducks — fronts & wind):** most migration rides the north winds within ~48 h of a cold
+front (fresh, decoying birds); wind keeps birds moving, animates decoys, and pushes them into
+sheltered lees; freeze-up concentrates them on the last open water; a bright, calm, high-pressure day
+is the toughest. Ducks land into the wind, so set the spread accordingly.
+- Ducks Unlimited, "Forecast Your Duck Hunting Success: Weather Matters" — https://www.ducks.org/hunting/waterfowl-hunting-tips/forecast-your-duck-hunting-success-weather-matters
+- Tidewe, "Fronts and Flights: Using Cold Fronts to Time Duck Migrations" — https://tidewe.org/?p=3620
+
+**Wild turkey (eyes and ears; wind is the spoiler):** roost at night, fly down at first light (prime
+hour); wind hides calls, spooks birds, and stops gobbling, so calm days are far better. Spring is a
+calling game for gobblers near the roost/hens; fall is find-scatter-and-call-back a flock on the food.
+- NWTF, "Roll With Weather Changes" — https://www.nwtf.org/content-hub/roll-with-weather-changes
+- Mossy Oak, "Hunting Fall Turkeys: Breaking Up Isn't Always Hard to Do" — https://www.mossyoak.com/our-obsession/blogs/turkey/hunting-fall-turkeys-breaking-up-isnt-always-hard-to-do
+
+**Coyote (a caller's game):** come to prey-distress and (in the late-winter breeding season) coyote
+vocals; move/hunt more in cold and low light (dawn/dusk/dark), best on cold, post-front, light-wind
+days when calls carry and scent is controlled; a stiff wind or warm spell hurts. They circle downwind
+to scent-check, so the setup lives on the wind.
+- Mossy Oak, "Winter is the Best Time to Hunt Coyotes" — https://www.mossyoak.com/our-obsession/blogs/predator/winter-is-the-best-time-to-hunt-coyotes
+- Outdoor Life, "Best Weather For Coyotes" — https://www.outdoorlife.com/blogs/hunting-andrew-mckean/2011/01/best-weather-coyotes/
