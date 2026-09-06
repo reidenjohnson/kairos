@@ -239,3 +239,18 @@ depths through summer.
   ~45 ft, often 60-120) on rock structure in summer, onto rocky reefs/shoals (20-60 ft) to spawn in
   fall. Flat-line trolling up high in spring; vertical jigging spoons/tubes on deep rock in summer.
   - Mercury Marine, "Lake Trout Fishing Tactics for the Open-Water Season" — https://www.mercurymarine.com/us/en/lifestyle/dockline/lake-trout-fishing-by-the-season
+
+**Pike & pickerel (weed-ambush predators):** hold in and along vegetation and cover and intercept
+prey; feed hardest on falling pressure and in the fall feed-up (the trophy window). Pike run cooler
+and bigger and slide to deeper cover in summer heat; pickerel are smaller and more heat/cold
+tolerant, staying in the shallow weeds and biting through the ice. Spoons, spinnerbaits, jerkbaits,
+weedless soft plastics; wire/heavy leader for the teeth; bigger baits for fall pike.
+- Wired2Fish, "Pike Fishing: Complete Guide for Every Season" — https://www.wired2fish.com/musky-pike/pike-fishing-guide
+
+**Panfish (yellow perch, white perch, black crappie, sunfish/bluegill):** schooling fish; shallow to
+spawn in spring, slightly deeper/cooler in summer, tight schools in fall. Light splits them: crappie
+and white perch are low-light suspending feeders (dawn/dusk/dark, off the bottom on brush/structure),
+yellow perch and bluegill feed by day nearer the bottom and cover. Small jigs, minnows/worms, tiny
+spoons; slow fall in cold water; crappie is the most bluebird-shy of the group.
+- DSG Outerwear, "The Ultimate Panfish Guide: Catching Crappie and Bluegill Year-Round" — https://www.dsgouterwear.com/blogs/news/the-ultimate-panfish-guide-catching-crappie-and-bluegill-year-round
+- Black Lake NY, "Locating Black Lake Fish" (perch/crappie/bluegill seasonal location) — https://blacklakeny.com/locating-black-lake-fish/

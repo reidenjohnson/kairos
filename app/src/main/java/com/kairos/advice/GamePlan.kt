@@ -45,6 +45,34 @@ enum class PlanKind { WHERE, WHEN, HOW, WHY }
 /** One section of the full page: a short do-this [brief] and a longer [more]. */
 data class PlanSection(val kind: PlanKind, val label: String, val brief: String, val more: String)
 
+/**
+ * Assemble the standard four-section plan (Where / When / How / Why). The How brief is
+ * always the [tacticLine] so the card and page agree. Shared by the per-species guides.
+ */
+internal fun fourSectionPlan(
+    phaseLabel: String,
+    headline: String,
+    tacticLine: String,
+    whyBrief: String,
+    whereBrief: String,
+    whereMore: String,
+    whenBrief: String,
+    whenMore: String,
+    howMore: String,
+    whyMore: String,
+): GamePlan = GamePlan(
+    phaseLabel = phaseLabel,
+    headline = headline,
+    tacticLine = tacticLine,
+    whyBrief = whyBrief,
+    sections = listOf(
+        PlanSection(PlanKind.WHERE, "Where", whereBrief, whereMore),
+        PlanSection(PlanKind.WHEN, "When", whenBrief, whenMore),
+        PlanSection(PlanKind.HOW, "How", tacticLine, howMore),
+        PlanSection(PlanKind.WHY, "Why", whyBrief, whyMore),
+    ),
+)
+
 /** A plain reading of today's weather, in the terms that actually change tactics. */
 internal class WeatherRead(c: Conditions, val precipMmHr: Double = 0.0) {
     val trend = c.pressureTrendInHg
@@ -126,6 +154,12 @@ fun buildGamePlan(sp: Species, c: Conditions, date: LocalDate, timing: DayTiming
         "Brook trout" -> brookTroutPlan(sp, c, w, date, timing)
         "Landlocked salmon" -> landlockedSalmonPlan(sp, c, w, date, timing)
         "Lake trout (togue)" -> lakeTroutPlan(sp, c, w, date, timing)
+        "Northern pike" -> pikePlan(sp, c, w, date, timing)
+        "Chain pickerel" -> pickerelPlan(sp, c, w, date, timing)
+        "Yellow perch" -> yellowPerchPlan(sp, c, w, date, timing)
+        "White perch" -> whitePerchPlan(sp, c, w, date, timing)
+        "Black crappie" -> blackCrappiePlan(sp, c, w, date, timing)
+        "Panfish (sunfish)" -> sunfishPlan(sp, c, w, date, timing)
         "Whitetail deer" -> whitetailPlan(sp, c, w, date, timing)
         else -> genericPlan(sp, c, w, date, timing)
     }
