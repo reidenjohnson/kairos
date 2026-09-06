@@ -4,6 +4,7 @@ import com.kairos.engine.Conditions
 import com.kairos.engine.SEBAGO_WATER_F
 import com.kairos.engine.SPECIES
 import com.kairos.engine.Side
+import com.kairos.engine.SpeciesFilter
 import com.kairos.engine.activityMultiplier
 import com.kairos.engine.moonInfo
 import com.kairos.engine.score
@@ -338,6 +339,9 @@ object WeatherRepository {
         val ssH = isoHour(sunsetIso) ?: return null
         val waterF = SEBAGO_WATER_F.getValue(date.monthValue).toDouble()
         val moonIllum = moonInfo(date).illum
+        // Honor the user's species filter so the hero + curve reflect only what they
+        // target. Recomputed on each fetch; a filter change triggers a refresh.
+        val enabledSpecies = SpeciesFilter.enabled(SPECIES)
         val hours = ArrayList<HourScore>()
         for (idx in 0 until times.length()) {
             val t = times.getString(idx)
@@ -359,7 +363,7 @@ object WeatherRepository {
                 moonIllum = moonIllum,
             )
             var huntSum = 0.0; var huntN = 0; var fishSum = 0.0; var fishN = 0
-            for (sp in SPECIES) {
+            for (sp in enabledSpecies) {
                 val act = activityMultiplier(timeOfDayActivity(h.toDouble(), srH, ssH, sp.chronotype))
                 val s = score(sp, c) * act
                 if (sp.side == Side.HUNT) { huntSum += s; huntN++ } else { fishSum += s; fishN++ }
@@ -373,8 +377,12 @@ object WeatherRepository {
             )
         }
         if (hours.isEmpty()) return null
-        val huntToday = (SPECIES.filter { it.side == Side.HUNT }.map { score(it, current) }.average() * 100).roundToInt()
-        val fishToday = (SPECIES.filter { it.side == Side.FISH }.map { score(it, current) }.average() * 100).roundToInt()
+        val huntEnabled = enabledSpecies.filter { it.side == Side.HUNT }
+        val fishEnabled = enabledSpecies.filter { it.side == Side.FISH }
+        val huntToday = if (huntEnabled.isEmpty()) 0
+            else (huntEnabled.map { score(it, current) }.average() * 100).roundToInt()
+        val fishToday = if (fishEnabled.isEmpty()) 0
+            else (fishEnabled.map { score(it, current) }.average() * 100).roundToInt()
         return DayTiming(hours.sortedBy { it.hour }, srH, ssH, huntToday, fishToday)
     }
 
