@@ -110,12 +110,18 @@ private fun ForecastList(
 ) {
     val forecast = ready.forecast
     val c = forecast.conditions
-    val scored = remember(forecast, sideFilter) { scoreAll(c, sideFilter) }
+    val scoredAll = remember(forecast, sideFilter) { scoreAll(c, sideFilter) }
+    // Honor the species filter (reads SpeciesPrefs.enabled so this recomposes on change).
+    val scored = scoredAll.filter { SpeciesPrefs.isEnabled(it.species.name) }
     val primary = scored.filter { isPrimary(it.species.name) }
     val secondary = scored.filter { !isPrimary(it.species.name) }
-    val openCount = remember(forecast, sideFilter) {
-        scored.count { seasonsFor(it.species.name)?.let { s -> seasonStatus(s, today).kind == SeasonStatusKind.OPEN } == true }
+    // Fish have no season table (open all year), so show a plain count for them and an
+    // "in season" count only where seasons apply (the hunt/best lists).
+    val hasSeasons = scored.any { seasonsFor(it.species.name) != null }
+    val openCount = scored.count {
+        seasonsFor(it.species.name)?.let { s -> seasonStatus(s, today).kind == SeasonStatusKind.OPEN } == true
     }
+    val bestTrailing = if (hasSeasons) "In season · $openCount" else "${scored.size} species"
 
     LazyColumn(
         modifier = Modifier
@@ -148,15 +154,37 @@ private fun ForecastList(
                 }
             }
         }
-        item { SectionHeader("Best today", "In season · $openCount") }
-        items(primary) { row ->
-            SpeciesCard(row, c, emphasized = row == primary.firstOrNull(), onOpenDetail = onOpenDetail)
-        }
-        if (secondary.isNotEmpty()) {
-            item { GroupDivider("Out of season · ${secondary.size}") }
-            items(secondary) { row -> OutOfSeasonRow(row, onOpenDetail) }
+        if (scored.isEmpty()) {
+            item { EmptySpeciesHint() }
+        } else {
+            item { SectionHeader("Best today", bestTrailing) }
+            items(primary) { row ->
+                SpeciesCard(row, c, emphasized = row == primary.firstOrNull(), onOpenDetail = onOpenDetail)
+            }
+            if (secondary.isNotEmpty()) {
+                item { GroupDivider("Out of season · ${secondary.size}") }
+                items(secondary) { row -> OutOfSeasonRow(row, onOpenDetail) }
+            }
         }
         item { Spacer(Modifier.height(Space.lg)) }
+    }
+}
+
+@Composable
+private fun EmptySpeciesHint() {
+    Column(Modifier.fillMaxWidth().padding(vertical = Space.xl)) {
+        Text(
+            "No species selected",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = KairosColors.Text,
+        )
+        Spacer(Modifier.height(Space.xs))
+        Text(
+            "Open the menu → Settings and turn on the species you're after.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = KairosColors.Dim,
+        )
     }
 }
 

@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.Forest
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.ShowChart
 import androidx.compose.material.icons.outlined.WaterDrop
 import androidx.compose.material3.DrawerValue
@@ -80,7 +81,7 @@ sealed interface UiState {
     data class Error(val message: String) : UiState
 }
 
-private enum class Dest { TODAY, SEASONS, WEEKLY, DETAIL, PLAN }
+private enum class Dest { TODAY, SEASONS, WEEKLY, SETTINGS, DETAIL, PLAN }
 
 /**
  * One place in the app. [side] applies to TODAY; [seasonFocus] to SEASONS; [detailSpecies]
@@ -196,6 +197,14 @@ fun KairosApp(onToggleTheme: (Boolean) -> Unit = {}) {
             }
         }
 
+        // The timing hero (per-side averages) is computed at fetch time over the enabled
+        // species, so a filter change needs a recompute. The visible lists update live;
+        // re-fetch once per change to bring the hero in line. (Skips the first pass.)
+        var filterInitialized by remember { mutableStateOf(false) }
+        LaunchedEffect(SpeciesPrefs.enabled) {
+            if (filterInitialized) reloadKey++ else filterInitialized = true
+        }
+
         val placeLabel = (state as? UiState.Ready)?.forecast?.placeLabel ?: "Locating…"
 
         ModalNavigationDrawer(
@@ -221,6 +230,7 @@ fun KairosApp(onToggleTheme: (Boolean) -> Unit = {}) {
                 }
                 Dest.SEASONS -> "Seasons"
                 Dest.WEEKLY -> "Weekly outlook"
+                Dest.SETTINGS -> "Settings"
                 Dest.DETAIL -> current.detailSpecies ?: "Details"
                 Dest.PLAN -> "Game plan"
             }
@@ -267,6 +277,7 @@ fun KairosApp(onToggleTheme: (Boolean) -> Unit = {}) {
                         )
                         Dest.SEASONS -> SeasonsScreen(focusSpecies = current.seasonFocus)
                         Dest.WEEKLY -> TrendsScreen(state = state, outlook = outlook)
+                        Dest.SETTINGS -> SettingsScreen()
                         Dest.DETAIL -> DetailScreen(
                             state = state,
                             speciesName = current.detailSpecies.orEmpty(),
@@ -337,6 +348,9 @@ private fun DrawerContent(
         }
         DrawerItem("Weekly outlook", Icons.Outlined.ShowChart, current == Dest.WEEKLY) {
             onSelect(Dest.WEEKLY, null)
+        }
+        DrawerItem("Settings", Icons.Outlined.Settings, current == Dest.SETTINGS) {
+            onSelect(Dest.SETTINGS, null)
         }
 
         Spacer(Modifier.weight(1f))

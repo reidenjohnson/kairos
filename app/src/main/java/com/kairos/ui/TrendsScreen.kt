@@ -49,7 +49,11 @@ import java.time.LocalDate
 @Composable
 fun TrendsScreen(state: UiState, outlook: Outlook?) {
     val context = LocalContext.current
-    var selected by remember { mutableStateOf(SPECIES.first().name) }
+    // Honor the species filter; if the chosen species is hidden, fall back to the first visible.
+    val visibleSpecies = SPECIES.filter { SpeciesPrefs.isEnabled(it.name) }
+    var picked by remember { mutableStateOf(SPECIES.first().name) }
+    val selected = if (visibleSpecies.any { it.name == picked }) picked
+        else visibleSpecies.firstOrNull()?.name ?: picked
 
     val actual = remember(selected, state) { ScoreHistory.history(context, selected) }
     val expected = remember(selected, outlook) {
@@ -83,10 +87,10 @@ fun TrendsScreen(state: UiState, outlook: Outlook?) {
         Spacer(Modifier.height(Space.lg))
 
         LazyRow(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-            items(SPECIES) { sp ->
+            items(visibleSpecies) { sp ->
                 FilterChip(
                     selected = sp.name == selected,
-                    onClick = { selected = sp.name },
+                    onClick = { picked = sp.name },
                     label = { Text(sp.name, style = MaterialTheme.typography.labelMedium) },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = KairosColors.SegBottom,
