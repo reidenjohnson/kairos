@@ -319,3 +319,20 @@ moose rut late Sep-early Oct; bass spawn ~60-65°F (May-June); walleye/pike spaw
 late spring/early summer. These are reference facts labeled as guidance, never a live prediction.
 - Maine IF&W species information pages (deer, moose, bear, turkey, migratory birds, fisheries "catch a
   specific fish") — linked per species from the app's Facts card.
+
+---
+
+## License & lottery deadlines (the in-app "apply before it closes" reminders)
+
+Maine's two draw-by-lottery permits require applying months ahead. The app stores the last officially
+posted cycle's dates (2026) and, once a window passes, honestly says the next cycle is not yet posted
+rather than guessing shifting dates. The "typically" cadence notes are approximate historical patterns,
+labeled as guidance in-app, never presented as official dates.
+
+**Moose permit lottery (2026):** applications open April 1; application deadline May 18, 2026 (11:59 pm
+ET); drawing Saturday, June 20, 2026 (Acton Fairgrounds).
+- Maine IF&W, "Moose Permit" — https://www.maine.gov/ifw/hunting-trapping/hunting/species/moose/moose-permit.html
+
+**Antlerless deer permit lottery (2026):** applications open June 25; application deadline Monday,
+August 3, 2026 (11:59 pm); drawing August 13, 2026; permit payment deadline September 10, 2026.
+- Maine IF&W, "Antlerless Deer Permit" — https://www.maine.gov/ifw/hunting-trapping/hunting/species/deer/antlerless-deer-permit.html

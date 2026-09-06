@@ -20,12 +20,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.outlined.EditCalendar
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.Forest
 import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.outlined.ShowChart
+import androidx.compose.material.icons.automirrored.outlined.ShowChart
 import androidx.compose.material.icons.outlined.WaterDrop
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -81,7 +82,7 @@ sealed interface UiState {
     data class Error(val message: String) : UiState
 }
 
-private enum class Dest { TODAY, SEASONS, WEEKLY, SETTINGS, DETAIL, PLAN }
+private enum class Dest { TODAY, SEASONS, DEADLINES, WEEKLY, SETTINGS, DETAIL, PLAN }
 
 /**
  * One place in the app. [side] applies to TODAY; [seasonFocus] to SEASONS; [detailSpecies]
@@ -229,6 +230,7 @@ fun KairosApp(onToggleTheme: (Boolean) -> Unit = {}) {
                     null -> "Today's Best"
                 }
                 Dest.SEASONS -> "Seasons"
+                Dest.DEADLINES -> "Licenses & lotteries"
                 Dest.WEEKLY -> "Weekly outlook"
                 Dest.SETTINGS -> "Settings"
                 Dest.DETAIL -> current.detailSpecies ?: "Details"
@@ -276,6 +278,7 @@ fun KairosApp(onToggleTheme: (Boolean) -> Unit = {}) {
                             },
                         )
                         Dest.SEASONS -> SeasonsScreen(focusSpecies = current.seasonFocus)
+                        Dest.DEADLINES -> DeadlinesScreen()
                         Dest.WEEKLY -> TrendsScreen(state = state, outlook = outlook)
                         Dest.SETTINGS -> SettingsScreen()
                         Dest.DETAIL -> DetailScreen(
@@ -346,7 +349,10 @@ private fun DrawerContent(
         DrawerItem("Seasons", Icons.Filled.CalendarMonth, current == Dest.SEASONS) {
             onSelect(Dest.SEASONS, null)
         }
-        DrawerItem("Weekly outlook", Icons.Outlined.ShowChart, current == Dest.WEEKLY) {
+        DrawerItem("Licenses & lotteries", Icons.Outlined.EditCalendar, current == Dest.DEADLINES) {
+            onSelect(Dest.DEADLINES, null)
+        }
+        DrawerItem("Weekly outlook", Icons.AutoMirrored.Outlined.ShowChart, current == Dest.WEEKLY) {
             onSelect(Dest.WEEKLY, null)
         }
         DrawerItem("Settings", Icons.Outlined.Settings, current == Dest.SETTINGS) {
