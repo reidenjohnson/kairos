@@ -17,7 +17,17 @@ class HuntMethodsTest {
         assertEquals(HuntMethod.ARCHERY, methodOf("Regular archery"))
         assertEquals(HuntMethod.FIREARMS, methodOf("Firearms"))
         assertEquals(HuntMethod.MUZZLELOADER, methodOf("Muzzleloader (statewide)"))
-        assertEquals(HuntMethod.OTHER, methodOf("Youth deer day"))
+        assertEquals(HuntMethod.GENERAL, methodOf("Youth deer day"))
+    }
+
+    @Test
+    fun `general windows always show even when filtering weapon methods`() {
+        MethodFilter.enabledMethods = setOf(HuntMethod.FIREARMS)
+        val deer = seasonsFor("Whitetail deer")!!
+        val kept = MethodFilter.windows(deer).map { methodOf(it.label) }.toSet()
+        assertTrue(HuntMethod.GENERAL in kept) // youth/residents days stay
+        assertTrue(HuntMethod.FIREARMS in kept)
+        assertFalse(HuntMethod.ARCHERY in kept)
     }
 
     @Test
@@ -29,12 +39,12 @@ class HuntMethodsTest {
     }
 
     @Test
-    fun `filter narrows a species to its enabled-method windows`() {
+    fun `filter drops unsubscribed weapon methods`() {
         MethodFilter.enabledMethods = setOf(HuntMethod.FIREARMS)
         val deer = seasonsFor("Whitetail deer")!!
-        val narrowed = MethodFilter.windows(deer)
-        assertTrue(narrowed.isNotEmpty())
-        assertTrue(narrowed.all { methodOf(it.label) == HuntMethod.FIREARMS })
+        val methods = MethodFilter.windows(deer).map { methodOf(it.label) }.toSet()
+        assertTrue(HuntMethod.FIREARMS in methods)
+        assertFalse(HuntMethod.ARCHERY in methods)
         assertFalse(MethodFilter.isEnabled(HuntMethod.ARCHERY))
     }
 }

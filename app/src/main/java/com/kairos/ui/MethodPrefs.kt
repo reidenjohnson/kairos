@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.kairos.engine.HuntMethod
 import com.kairos.engine.MethodFilter
+import com.kairos.engine.SUBSCRIBABLE_METHODS
 
 /**
  * The user's hunting-method subscription ("seasons you hunt"), observable by Compose.
@@ -21,7 +22,7 @@ object MethodPrefs {
 
     var onChange: ((Set<HuntMethod>?) -> Unit)? = null
 
-    private val all: Set<HuntMethod> get() = HuntMethod.entries.toSet()
+    private val all: Set<HuntMethod> get() = SUBSCRIBABLE_METHODS.toSet()
 
     fun restore(methods: Set<HuntMethod>?) {
         enabled = methods

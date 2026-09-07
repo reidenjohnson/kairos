@@ -230,7 +230,7 @@ private fun MethodsCard() {
             .fillMaxWidth()
             .background(KairosColors.Surface, RoundedCornerShape(16.dp)),
     ) {
-        val methods = HuntMethod.entries
+        val methods = com.kairos.engine.SUBSCRIBABLE_METHODS
         methods.forEachIndexed { i, m ->
             val on = MethodPrefs.isEnabled(m)
             Row(

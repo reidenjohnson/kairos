@@ -14,8 +14,15 @@ enum class HuntMethod(val label: String) {
     EXPANDED_ARCHERY("Expanded archery"),
     FIREARMS("Firearms"),
     MUZZLELOADER("Muzzleloader"),
-    OTHER("Other seasons"),
+    // Everything that isn't one of the deer methods above: general seasons (grouse,
+    // waterfowl, bear, hare, turkey) and the deer special days (youth / residents-only).
+    // Not a "method you sign up for", so it's NOT subscribable and always shows.
+    GENERAL("General season"),
 }
+
+/** The methods a user actually subscribes to in Settings (the deer choices). */
+val SUBSCRIBABLE_METHODS: List<HuntMethod> =
+    listOf(HuntMethod.ARCHERY, HuntMethod.EXPANDED_ARCHERY, HuntMethod.FIREARMS, HuntMethod.MUZZLELOADER)
 
 /** Classify a season window by its label into a [HuntMethod]. */
 fun methodOf(windowLabel: String): HuntMethod {
@@ -25,7 +32,7 @@ fun methodOf(windowLabel: String): HuntMethod {
         "archery" in l -> HuntMethod.ARCHERY
         "firearms" in l -> HuntMethod.FIREARMS
         "muzzleloader" in l -> HuntMethod.MUZZLELOADER
-        else -> HuntMethod.OTHER
+        else -> HuntMethod.GENERAL
     }
 }
 
@@ -38,14 +45,15 @@ object MethodFilter {
     @Volatile
     var enabledMethods: Set<HuntMethod>? = null
 
-    /** True when [m] should be shown under the current subscription. */
-    fun isEnabled(m: HuntMethod): Boolean = enabledMethods?.contains(m) ?: true
+    /** True when [m] should be shown. GENERAL always shows (it isn't subscribable). */
+    fun isEnabled(m: HuntMethod): Boolean =
+        m == HuntMethod.GENERAL || (enabledMethods?.contains(m) ?: true)
 
-    /** The windows of [s] narrowed to enabled methods (all when no filter is set). */
+    /** The windows of [s] narrowed to enabled methods; GENERAL windows always kept. */
     fun windows(s: SpeciesSeasons): List<SeasonWindow> =
-        enabledMethods?.let { set -> s.windows.filter { methodOf(it.label) in set } } ?: s.windows
+        enabledMethods?.let { set -> s.windows.filter { isEnabled(methodOf(it.label)) } } ?: s.windows
 
-    /** True when [s] has at least one window under an enabled method (or no filter). */
+    /** True when [s] has at least one window still showing (or no filter). */
     fun coversAny(s: SpeciesSeasons): Boolean =
         s.noOpenSeason || windows(s).isNotEmpty() || enabledMethods == null
 }

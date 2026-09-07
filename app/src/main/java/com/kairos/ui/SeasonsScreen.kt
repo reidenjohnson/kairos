@@ -297,7 +297,9 @@ private fun SeasonChart(speciesList: List<SpeciesSeasons>, today: LocalDate, onT
                     // Method segments (tall, rounded, colored).
                     s.windows.forEach { win ->
                         val x0 = w * frac(win.start)
-                        val barW = (w * frac(win.end) - w * frac(win.start)).coerceAtLeast(6.dp)
+                        // Keep short windows (e.g. the 5-day muzzleloader splits) as small
+                        // BARS, not dots — a modest min width + a small radius.
+                        val barW = (w * frac(win.end) - w * frac(win.start)).coerceAtLeast(9.dp)
                         val covers = !today.isBefore(win.start) && !today.isAfter(win.end)
                         val past = win.end.isBefore(today)
                         val mColor = methodColor(methodOf(win.label))
@@ -305,9 +307,9 @@ private fun SeasonChart(speciesList: List<SpeciesSeasons>, today: LocalDate, onT
                             Modifier
                                 .offset(x = x0)
                                 .width(barW)
-                                .height(if (covers) 16.dp else 13.dp)
+                                .height(if (covers) 16.dp else 12.dp)
                                 .align(Alignment.CenterStart)
-                                .clip(RoundedCornerShape(7.dp))
+                                .clip(RoundedCornerShape(3.dp))
                                 .background(if (past) mColor.copy(alpha = 0.32f) else mColor),
                         )
                     }
@@ -329,7 +331,9 @@ private fun SeasonChart(speciesList: List<SpeciesSeasons>, today: LocalDate, onT
 /** The color key for the chart — only the methods actually present. */
 @Composable
 private fun MethodLegend(speciesList: List<SpeciesSeasons>) {
-    val present = speciesList.flatMap { it.windows }.map { methodOf(it.label) }.distinct()
+    // Only the real weapon methods get a legend; general-season species just show name + dates.
+    val present = speciesList.flatMap { it.windows }.map { methodOf(it.label) }
+        .filter { it != com.kairos.engine.HuntMethod.GENERAL }.distinct()
     if (present.isEmpty()) return
     Row(
         Modifier.fillMaxWidth().padding(top = 2.dp),
@@ -345,10 +349,9 @@ private fun MethodLegend(speciesList: List<SpeciesSeasons>) {
     }
 }
 
-/** Compact legend labels so the five methods fit on one line. */
+/** Compact legend labels so the methods fit on one line. */
 private fun legendLabel(m: com.kairos.engine.HuntMethod): String = when (m) {
     com.kairos.engine.HuntMethod.EXPANDED_ARCHERY -> "Exp. archery"
-    com.kairos.engine.HuntMethod.OTHER -> "Other"
     else -> m.label
 }
 

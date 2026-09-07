@@ -46,7 +46,7 @@ internal fun methodColor(m: HuntMethod): Color = when (m) {
     HuntMethod.EXPANDED_ARCHERY -> KairosColors.Water // teal
     HuntMethod.FIREARMS -> KairosColors.Fair          // amber
     HuntMethod.MUZZLELOADER -> KairosColors.Error     // red — distinct from the greens
-    HuntMethod.OTHER -> KairosColors.Slow             // muted gray
+    HuntMethod.GENERAL -> KairosColors.Slow           // neutral gray — just "the season"
 }
 
 @Composable
