@@ -183,3 +183,24 @@ fun buildSidePlan(side: Side, c: Conditions, date: LocalDate, timing: DayTiming?
     val w = WeatherRead(c, precipMmHr)
     return if (side == Side.FISH) generalFishPlan(c, w, date, timing) else generalHuntPlan(c, w, date, timing)
 }
+
+/**
+ * One tight sentence for the Today card: WHEN to go + WHAT to do, fused. Combines the
+ * day's best window with the first, punchiest clause of the species' tactic (which
+ * already carries the lure, speed, and color). Meant to be readable at a glance without
+ * opening the plan, e.g. "Best 6–10 AM & 5–8 PM: cover water with a jerkbait or
+ * fire-tiger crankbait, reeled steady across the rock."
+ */
+fun todaysPlayLine(sp: Species, c: Conditions, date: LocalDate, timing: DayTiming?, precipMmHr: Double = 0.0): String {
+    val plan = buildGamePlan(sp, c, date, timing, precipMmHr)
+    val window = windowsText(timing, sp.side).replace(" and ", " & ")
+    val tactic = firstClause(plan.tacticLine)
+    return "Best $window: $tactic"
+}
+
+/** The first sentence of a tactic blurb — the one that names what to throw / how to hunt. */
+private fun firstClause(tactic: String): String {
+    val end = tactic.indexOf(". ")
+    val first = if (end > 0) tactic.substring(0, end + 1) else tactic
+    return first.replaceFirstChar { it.lowercaseChar() }
+}

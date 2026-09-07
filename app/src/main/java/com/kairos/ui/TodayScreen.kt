@@ -8,7 +8,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -16,6 +18,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -34,9 +38,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kairos.advice.FolkloreStanding
+import com.kairos.advice.RecLevel
 import com.kairos.advice.buildSidePlan
+import com.kairos.advice.pickFolklore
+import com.kairos.advice.todaysPlayLine
+import com.kairos.advice.weekRecommendation
 import com.kairos.data.Forecast
 import com.kairos.engine.Conditions
 import com.kairos.engine.Rating
@@ -96,6 +106,12 @@ private fun isPrimary(speciesName: String): Boolean {
     return kind == SeasonStatusKind.OPEN || kind == SeasonStatusKind.UPCOMING
 }
 
+/** Open for hunting/fishing RIGHT NOW: fish (no closed season here) always; hunt only if open today. */
+private fun isInSeasonNow(speciesName: String): Boolean {
+    val s = seasonsFor(speciesName) ?: return true
+    return seasonStatus(s, today).kind == SeasonStatusKind.OPEN
+}
+
 @Composable
 private fun ForecastList(
     ready: UiState.Ready,
@@ -107,10 +123,13 @@ private fun ForecastList(
     val forecast = ready.forecast
     val c = forecast.conditions
     val scoredAll = remember(forecast) { scoreAll(c) }
-    // Honor the species filter (reads SpeciesPrefs.enabled so this recomposes on change).
-    val scored = scoredAll.filter { SpeciesPrefs.isEnabled(it.species.name) }
-    // The single best bet right now — the one curated highlight the hero earns.
-    val topPick = scored.maxByOrNull { it.percent }
+    // The hero deck: selected species (SpeciesPrefs) that are actually IN SEASON right now
+    // — an out-of-season animal is never a "top pick." Fish have no closed season here, so
+    // they always qualify; hunt species must be open today. Best score first.
+    val picks = scoredAll
+        .filter { SpeciesPrefs.isEnabled(it.species.name) }
+        .filter { isInSeasonNow(it.species.name) }
+        .sortedByDescending { it.percent }
 
     LazyColumn(
         modifier = Modifier
@@ -132,12 +151,16 @@ private fun ForecastList(
         if (forecast.legalShootingHours != null) {
             item { LegalLightCard(forecast) }
         }
-        if (topPick == null) {
+        // The honest "what should I actually do" call, in season, across the week.
+        item { RecommendationCard(picks, forecast.weekTiming) }
+        if (picks.isEmpty()) {
             item { EmptySpeciesHint() }
         } else {
-            // One curated highlight (the card carries its own "Top pick today" label).
-            item { SpeciesCard(topPick, c, emphasized = true, onOpenDetail = onOpenDetail) }
+            // A swipeable deck of the selected species, best-first, each with today's play.
+            item { TopPickPager(picks, forecast, onOpenDetail) }
         }
+        // The old-timer's read: labeled traditional wisdom, backed-by-the-barometer or not.
+        item { FolkloreCard(forecast) }
         item { Spacer(Modifier.height(Space.lg)) }
     }
 }
@@ -390,7 +413,8 @@ private fun WeatherCard(f: Forecast, onClick: () -> Unit) {
         Spacer(Modifier.height(Space.sm))
         Text(
             buildString {
-                append("Water ~${f.waterF.roundToInt()}°")
+                val tilde = if (f.waterTemp?.estimated != false) "~" else ""
+                append("Water $tilde${f.waterF.roundToInt()}°")
                 f.sunriseTime?.let { append("   ·   ↑ ${fmt.format(it)}") }
                 f.sunsetTime?.let { append("   ·   ↓ ${fmt.format(it)}") }
             },
@@ -465,75 +489,269 @@ private fun SectionHeader(title: String, trailing: String) {
     }
 }
 
+/**
+ * The hero deck: swipe through the selected species best-first, each an emphasized
+ * card with today's play (the Game Plan's tactic line). Page 0 is the top pick; the
+ * rest are ranked. Below the deck, dots + a count show there's more to swipe.
+ */
 @Composable
-private fun SpeciesCard(row: SpeciesScore, c: Conditions, emphasized: Boolean, onOpenDetail: (String) -> Unit) {
+private fun TopPickPager(picks: List<SpeciesScore>, forecast: Forecast, onOpenDetail: (String) -> Unit) {
+    val c = forecast.conditions
+    val size = picks.size
+    val loop = size > 1
+    // Circular paging: a huge virtual page count started at a multiple of [size], so
+    // swiping wraps past the last card back to the first (and vice-versa).
+    val start = if (loop) (Int.MAX_VALUE / 2) - (Int.MAX_VALUE / 2 % size) else 0
+    val pagerState = rememberPagerState(initialPage = start, pageCount = { if (loop) Int.MAX_VALUE else 1 })
+    Column {
+        HorizontalPager(
+            state = pagerState,
+            pageSpacing = Space.sm,
+            verticalAlignment = Alignment.Top,
+        ) { page ->
+            val idx = if (loop) page % size else 0
+            val row = picks[idx]
+            // One tight sentence: when to go + what to do (lure, speed, color), fused.
+            val play = remember(forecast, row.species.name) {
+                todaysPlayLine(row.species, c, today, forecast.timing, forecast.precipMmHr)
+            }
+            SpeciesCard(
+                row,
+                c,
+                emphasized = true,
+                glow = idx == 0, // the top pick gets a soft highlight
+                heroLabel = if (idx == 0) "Top pick today" else sideWord(row.species.side),
+                tacticLine = play,
+                onOpenDetail = onOpenDetail,
+            )
+        }
+        if (loop) {
+            Spacer(Modifier.height(Space.sm))
+            PagerDots(current = pagerState.currentPage % size, count = size)
+        }
+    }
+}
+
+private fun sideWord(side: Side): String = if (side == Side.FISH) "Fish" else "Hunt"
+
+/**
+ * The recommendation callout: a plain-English verdict on what's actually worth doing
+ * this week (in season, absolute quality, best day), accented by how good the call is.
+ */
+@Composable
+private fun RecommendationCard(inSeasonToday: List<SpeciesScore>, weekTiming: List<com.kairos.data.DayTiming>) {
+    val rec = remember(inSeasonToday, weekTiming) { weekRecommendation(inSeasonToday, weekTiming, today) }
+    val accent = when (rec.level) {
+        RecLevel.GOOD -> KairosColors.Good
+        RecLevel.FAIR -> KairosColors.Fair
+        RecLevel.SLOW -> KairosColors.Slow
+    }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .height(IntrinsicSize.Min)
+            .clip(RoundedCornerShape(18.dp))
+            .background(KairosColors.Surface)
+            .border(1.dp, KairosColors.Line, RoundedCornerShape(18.dp)),
+    ) {
+        // A color spine keys the card to the verdict without recoloring the whole thing.
+        Box(Modifier.width(4.dp).fillMaxHeight().background(accent))
+        Column(Modifier.padding(16.dp)) {
+            Overline("Best bet this week", color = accent)
+            Spacer(Modifier.height(6.dp))
+            Text(
+                rec.headline,
+                fontFamily = Bricolage,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = (-0.4).sp,
+                lineHeight = 24.sp,
+                color = KairosColors.Text,
+            )
+            Spacer(Modifier.height(Space.sm))
+            Text(rec.detail, style = MaterialTheme.typography.bodyMedium, color = KairosColors.Dim, lineHeight = 20.sp)
+        }
+    }
+}
+
+/**
+ * The "Old-timer's read": one relevant piece of traditional weather wisdom for today,
+ * clearly labeled backed-by-the-barometer or tradition-only, and kept visibly separate
+ * from the cited score (it never moves the number).
+ */
+@Composable
+private fun FolkloreCard(forecast: Forecast) {
+    val f = remember(forecast) {
+        pickFolklore(forecast.conditions, forecast.windDirDeg, today, forecast.moonName)
+    }
+    val backed = f.standing == FolkloreStanding.BACKED
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(KairosColors.Surface)
+            .border(1.dp, KairosColors.Line, RoundedCornerShape(18.dp))
+            .padding(18.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Overline("Weather wisdom", color = KairosColors.Prime)
+            Spacer(Modifier.weight(1f))
+            StandingChip(backed)
+        }
+        Spacer(Modifier.height(Space.md))
+        Text(
+            "“${f.saying}”",
+            fontFamily = Bricolage,
+            fontSize = 19.sp,
+            fontWeight = FontWeight.Bold,
+            lineHeight = 24.sp,
+            color = KairosColors.Text,
+        )
+        Spacer(Modifier.height(Space.sm))
+        Text(f.read, style = MaterialTheme.typography.bodyMedium, color = KairosColors.Dim, lineHeight = 19.sp)
+        Spacer(Modifier.height(Space.sm))
+        Text(f.note, style = MaterialTheme.typography.labelSmall, color = KairosColors.Faint, lineHeight = 15.sp)
+    }
+}
+
+/** The little badge saying whether today's saying is science-backed or just tradition. */
+@Composable
+private fun StandingChip(backed: Boolean) {
+    val color = if (backed) KairosColors.Good else KairosColors.Faint
+    val label = if (backed) "Barometer backs this" else "Tradition"
+    Box(
+        Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(color.copy(alpha = 0.16f))
+            .padding(horizontal = 9.dp, vertical = 3.dp),
+    ) {
+        Text(label.uppercase(), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = color, letterSpacing = 0.4.sp)
+    }
+}
+
+/** A row of dots marking the current hero page, with a swipe affordance. */
+@Composable
+private fun PagerDots(current: Int, count: Int) {
+    Row(
+        Modifier.fillMaxWidth().padding(top = 2.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        repeat(count) { i ->
+            val active = i == current
+            Box(
+                Modifier
+                    .padding(horizontal = 3.dp)
+                    .size(if (active) 7.dp else 6.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(if (active) KairosColors.Water else KairosColors.Line),
+            )
+        }
+    }
+}
+
+@Composable
+private fun SpeciesCard(
+    row: SpeciesScore,
+    c: Conditions,
+    emphasized: Boolean,
+    heroLabel: String = "Top pick today",
+    tacticLine: String? = null,
+    glow: Boolean = false,
+    onOpenDetail: (String) -> Unit,
+) {
     val status = seasonsFor(row.species.name)?.let { seasonStatus(it, today) }
     val radius = if (emphasized) 22.dp else 18.dp
     val shape = RoundedCornerShape(radius)
+    val glowColor = KairosColors.Water
     val base = Modifier
         .fillMaxWidth()
         .shadow(
-            elevation = if (emphasized) 12.dp else 3.dp,
+            elevation = if (!emphasized) 3.dp else if (glow) 22.dp else 12.dp,
             shape = shape,
             clip = false,
-            spotColor = KairosColors.ShadowSpot,
-            ambientColor = KairosColors.ShadowSpot,
+            spotColor = if (glow) glowColor else KairosColors.ShadowSpot,
+            ambientColor = if (glow) glowColor else KairosColors.ShadowSpot,
         )
         .clip(shape)
         .clickable { onOpenDetail(row.species.name) }
     val styled = if (emphasized) {
         base
             .background(Brush.verticalGradient(listOf(KairosColors.CardTop, KairosColors.CardBottom)))
-            .border(1.dp, KairosColors.CardBorder, shape)
+            .border(1.dp, if (glow) glowColor.copy(alpha = 0.55f) else KairosColors.CardBorder, shape)
     } else {
         base
             .background(KairosColors.Surface)
             .border(1.dp, KairosColors.Line, shape)
     }
-    Column(styled.padding(if (emphasized) 18.dp else 16.dp)) {
-        if (emphasized) {
-            Overline("Top pick today", color = KairosColors.Water)
-            Spacer(Modifier.height(Space.md))
+    if (!emphasized) {
+        // Compact fallback (not currently used on any screen, kept simple).
+        Column(styled.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(row.species.name, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = KairosColors.Text)
+                Text("${row.percent}", fontFamily = Bricolage, fontSize = 34.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-1.5).sp, color = ratingColor(row.rating))
+            }
+            Spacer(Modifier.height(Space.sm))
+            ScoreBar(row.percent, ratingColor(row.rating))
+            Spacer(Modifier.height(Space.sm))
+            Text(whyFor(row.species, c), style = MaterialTheme.typography.bodyMedium, color = KairosColors.Dim, lineHeight = 19.sp)
         }
-        Row(verticalAlignment = Alignment.Top) {
+        return
+    }
+    Column(styled.padding(16.dp)) {
+        // Name + score on one line so there's no dead space beside a short name.
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
+                Overline(heroLabel, color = KairosColors.Water)
+                Spacer(Modifier.height(6.dp))
                 Text(
                     row.species.name,
-                    style = if (emphasized) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontFamily = Bricolage,
                     fontWeight = FontWeight.Bold,
+                    letterSpacing = (-0.5).sp,
                     color = KairosColors.Text,
                 )
-                if (status != null) {
-                    Spacer(Modifier.height(5.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            Modifier
-                                .size(8.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(seasonDotColor(status.kind)),
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text(status.headline(), style = MaterialTheme.typography.labelSmall, color = KairosColors.Faint)
-                    }
-                }
             }
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    "${row.percent}",
-                    fontFamily = Bricolage,
-                    fontSize = if (emphasized) 46.sp else 34.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = (-1.5).sp,
-                    lineHeight = if (emphasized) 46.sp else 34.sp,
-                    color = ratingColor(row.rating),
-                )
-                RatingPill(row.rating)
+            Spacer(Modifier.width(Space.sm))
+            Text(
+                "${row.percent}",
+                fontFamily = Bricolage,
+                fontSize = 44.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = (-1.5).sp,
+                lineHeight = 44.sp,
+                color = ratingColor(row.rating),
+            )
+        }
+        Spacer(Modifier.height(Space.sm))
+        // One meta row: rating + (if any) the season status, so nothing stacks tall.
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            RatingPill(row.rating)
+            if (status != null) {
+                Spacer(Modifier.width(Space.sm))
+                Box(Modifier.size(7.dp).clip(RoundedCornerShape(4.dp)).background(seasonDotColor(status.kind)))
+                Spacer(Modifier.width(5.dp))
+                Text(status.headline(), style = MaterialTheme.typography.labelSmall, color = KairosColors.Faint, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
         Spacer(Modifier.height(Space.md))
         ScoreBar(row.percent, ratingColor(row.rating))
-        Spacer(Modifier.height(Space.md))
-        Text(whyFor(row.species, c), style = MaterialTheme.typography.bodyMedium, color = KairosColors.Dim, lineHeight = 19.sp)
+        if (!tacticLine.isNullOrBlank()) {
+            Spacer(Modifier.height(Space.md))
+            // One concrete play sentence (when + what + how) then a plain arrow for more.
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(
+                    tacticLine,
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = KairosColors.Text,
+                    lineHeight = 20.sp,
+                )
+                Spacer(Modifier.width(Space.sm))
+                Text("›", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = KairosColors.Water)
+            }
+        }
     }
 }
 
