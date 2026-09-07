@@ -68,6 +68,9 @@ data class Forecast(
     val source: String = "Open-Meteo",
     /** This hour's precipitation rate (mm/hr); 0 when dry. Feeds the Game Plan's rain read. */
     val precipMmHr: Double = 0.0,
+    /** Local hour (0-23) a real cold front is expected to arrive in the next 24h, or
+     *  null if none — lets the plan say "be out before ~2 PM." */
+    val frontArrivalHour: Int? = null,
 ) {
     val trendWord: String
         get() = when {
