@@ -12,6 +12,7 @@ import com.kairos.ui.KairosApp
 import com.kairos.ui.KairosColors
 import com.kairos.ui.NotifyPrefs
 import com.kairos.ui.SpeciesPrefs
+import com.kairos.ui.WaterPrefs
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -44,6 +45,20 @@ class MainActivity : ComponentActivity() {
             prefs.edit().putBoolean(NOTIFY_KEY_ENABLED, on).apply()
             if (on) NotificationScheduler.schedule(this) else NotificationScheduler.cancel(this)
         }
+
+        // Restore any hand-entered water-temp reading (temp + when it was taken), then
+        // persist edits. The engine ages it out on its own once stale.
+        val savedWater = if (prefs.contains(WATER_KEY_TEMP)) prefs.getFloat(WATER_KEY_TEMP, 0f).toDouble() else null
+        WaterPrefs.restore(savedWater, prefs.getLong(WATER_KEY_AT, 0L))
+        WaterPrefs.onChange = { tempF, at ->
+            prefs.edit().apply {
+                if (tempF == null) {
+                    remove(WATER_KEY_TEMP); remove(WATER_KEY_AT)
+                } else {
+                    putFloat(WATER_KEY_TEMP, tempF.toFloat()); putLong(WATER_KEY_AT, at)
+                }
+            }.apply()
+        }
         enableEdgeToEdge()
         setContent {
             KairosApp(
@@ -60,5 +75,7 @@ class MainActivity : ComponentActivity() {
         const val THEME_KEY_DARK = "dark"
         const val SPECIES_KEY_ENABLED = "species_enabled"
         const val NOTIFY_KEY_ENABLED = "notify_enabled"
+        const val WATER_KEY_TEMP = "water_temp_f"
+        const val WATER_KEY_AT = "water_temp_at"
     }
 }

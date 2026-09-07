@@ -17,20 +17,34 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kairos.engine.SPECIES
 import com.kairos.engine.Side
+import com.kairos.engine.WaterUserReading
 import com.kairos.notify.Notifications
 
 /**
@@ -88,10 +102,112 @@ fun SettingsScreen() {
         sideSection(Side.FISH, "Fish")
 
         item { Spacer(Modifier.height(Space.sm)) }
+        item { Overline("Water temperature", modifier = Modifier.padding(top = Space.sm)) }
+        item { WaterTempCard() }
+
+        item { Spacer(Modifier.height(Space.sm)) }
         item { Overline("Reminders", modifier = Modifier.padding(top = Space.sm)) }
         item { NotificationsCard() }
 
         item { Spacer(Modifier.height(Space.lg)) }
+    }
+}
+
+/**
+ * Enter a thermometer reading for the water you're on — the most accurate input for a
+ * small pond, and the top tier below your own gauge. Writes [WaterPrefs] (which updates
+ * the engine so the next refresh scores against it). The engine ages a reading out after
+ * a few days on its own; the card shows how fresh the current one is.
+ */
+@Composable
+private fun WaterTempCard() {
+    val current = WaterPrefs.tempF // observed — recomposes on save/clear
+    var text by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    val keyboard = LocalSoftwareKeyboardController.current
+
+    val save: () -> Unit = {
+        val v = text.trim().toDoubleOrNull()
+        when {
+            v == null -> error = "Enter a number"
+            v < 32 || v > 90 -> error = "Must be 32–90 °F"
+            else -> {
+                WaterPrefs.set(v)
+                text = ""
+                error = null
+                keyboard?.hide()
+            }
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(KairosColors.Surface, RoundedCornerShape(16.dp))
+            .padding(horizontal = Space.lg, vertical = Space.md),
+    ) {
+        if (current != null) {
+            val fresh = WaterPrefs.isFresh()
+            val age = WaterUserReading.ageDays(System.currentTimeMillis()) ?: 0L
+            val ageWord = when (age) {
+                0L -> "entered today"
+                1L -> "entered yesterday"
+                else -> "entered $age days ago"
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "${current.toInt()}°",
+                    fontFamily = Bricolage,
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = KairosColors.Text,
+                )
+                Spacer(Modifier.width(Space.sm))
+                Column(Modifier.weight(1f)) {
+                    Text("Your reading", style = MaterialTheme.typography.bodyMedium, color = KairosColors.Text)
+                    Text(
+                        if (fresh) "In use · $ageWord" else "Expired · $ageWord",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (fresh) KairosColors.Good else KairosColors.Faint,
+                    )
+                }
+                TextButton(onClick = { WaterPrefs.clear() }) { Text("Clear") }
+            }
+            Spacer(Modifier.height(Space.sm))
+        }
+
+        Text(
+            "Punch in a thermometer reading and Kairos scores fish against it for a few days. " +
+                "Otherwise it uses a nearby USGS gauge, or a labeled estimate.",
+            style = MaterialTheme.typography.bodySmall,
+            color = KairosColors.Dim,
+            lineHeight = 17.sp,
+        )
+        Spacer(Modifier.height(Space.sm))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it.filter { c -> c.isDigit() || c == '.' }; error = null },
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                isError = error != null,
+                placeholder = { Text("e.g. 68") },
+                suffix = { Text("°F") },
+                supportingText = error?.let { { Text(it, color = KairosColors.Error) } },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { save() }),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = KairosColors.Pine,
+                    cursorColor = KairosColors.Pine,
+                ),
+            )
+            Spacer(Modifier.width(Space.sm))
+            Button(
+                onClick = save,
+                enabled = text.isNotBlank(),
+                colors = ButtonDefaults.buttonColors(containerColor = KairosColors.Pine, contentColor = KairosColors.OnSeg),
+            ) { Text("Save") }
+        }
     }
 }
 

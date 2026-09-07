@@ -100,7 +100,7 @@ fun WeatherScreen(state: UiState) {
                     "${f.windMph.roundToInt()} mph" to "wind",
                     "−${f.tempDropNext24hF.roundToInt()}°" to "cold front, next 24h",
                     "${f.cloudPct.roundToInt()}%" to "cloud cover",
-                    "~${f.waterF.roundToInt()}°" to "water temp (est.)",
+                    waterValueLabel(f) to "water temp${waterTierSuffix(f)}",
                     (if (f.precipMmHr > 0) "%.1f mm/h".format(f.precipMmHr) else "None") to "rain now",
                 ),
             )
@@ -118,14 +118,18 @@ fun WeatherScreen(state: UiState) {
             }
         }
 
+        item { SectionTick("Water temperature") }
         item {
-            Text(
-                "Water temp is an estimate from a monthly Sebago Lake curve, not a live reading — the free " +
-                    "weather feed gives air temp only. It's the main accuracy gap for the fishing scores.",
-                style = MaterialTheme.typography.labelSmall,
-                color = KairosColors.Faint,
-                lineHeight = 15.sp,
-            )
+            InfoCard {
+                KeyValue(waterSourceTitle(f), "${f.waterF.roundToInt()}°")
+                Text(
+                    waterSourceNote(f),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = KairosColors.Faint,
+                    lineHeight = 15.sp,
+                    modifier = Modifier.padding(bottom = 12.dp),
+                )
+            }
         }
         item { Spacer(Modifier.height(Space.lg)) }
     }
@@ -194,4 +198,38 @@ internal fun trendArrow(trendInHg: Double): String = when {
     trendInHg < -0.01 -> "↓"
     trendInHg > 0.01 -> "↑"
     else -> "→"
+}
+
+// --- Water-temperature provenance (tiered: user reading → USGS gauge → estimate) ---
+
+/** The metric value, with a "~" only on an estimate to signal it isn't measured. */
+private fun waterValueLabel(f: Forecast): String {
+    val prefix = if (f.waterTemp?.estimated != false) "~" else ""
+    return "$prefix${f.waterF.roundToInt()}°"
+}
+
+/** A short suffix on the metric label naming the tier: (yours) / (gauge) / (est.). */
+private fun waterTierSuffix(f: Forecast): String = when (f.waterTemp?.tier) {
+    com.kairos.engine.WaterTempTier.USER -> " (yours)"
+    com.kairos.engine.WaterTempTier.GAUGE -> " (gauge)"
+    com.kairos.engine.WaterTempTier.SATELLITE -> " (satellite)"
+    else -> " (est.)"
+}
+
+private fun waterSourceTitle(f: Forecast): String = f.waterTemp?.label ?: "Estimate"
+
+/** One honest line about where the water number came from + how to improve it. */
+private fun waterSourceNote(f: Forecast): String = when (f.waterTemp?.tier) {
+    com.kairos.engine.WaterTempTier.USER ->
+        "${f.waterTemp!!.detail}. Kairos trusts your reading for a few days, then falls back to a " +
+            "nearby gauge or an estimate. Update it in Settings when you take a fresh reading."
+    com.kairos.engine.WaterTempTier.GAUGE ->
+        "${f.waterTemp!!.detail}. A live USGS sensor reading — the most accurate source when a gauge " +
+            "covers your water. Standing on a different pond? Enter your own reading in Settings."
+    com.kairos.engine.WaterTempTier.SATELLITE ->
+        "${f.waterTemp!!.detail}. A measured satellite surface temp."
+    else ->
+        "Estimated from the seasonal water normal nudged by recent air temperature — not a live reading, " +
+            "since the free weather feed gives air temp only. For real accuracy, enter a thermometer reading " +
+            "in Settings; Kairos also uses a nearby USGS gauge automatically when one covers your water."
 }

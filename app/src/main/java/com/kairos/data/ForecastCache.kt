@@ -2,6 +2,8 @@ package com.kairos.data
 
 import android.content.Context
 import com.kairos.engine.Conditions
+import com.kairos.engine.WaterTempReading
+import com.kairos.engine.WaterTempTier
 import org.json.JSONObject
 
 /**
@@ -34,6 +36,9 @@ object ForecastCache {
             .put("sunrise", f.sunrise)
             .put("sunset", f.sunset)
             .put("source", f.source)
+            .put("waterTier", f.waterTemp?.tier?.name)
+            .put("waterLabel", f.waterTemp?.label)
+            .put("waterDetail", f.waterTemp?.detail)
         prefs(context).edit().putString(KEY, o.toString()).apply()
     }
 
@@ -51,12 +56,25 @@ object ForecastCache {
                 tempDropNext24hF = o.getDouble("tempDropNext24hF"),
                 moonIllum = o.getDouble("moonIllum"),
             )
+            // Rebuild the water source if it was stored (older caches omit it → null,
+            // which the UI shows as a plain estimate).
+            val waterTemp = o.optString("waterTier", null)?.let { tierName ->
+                runCatching { WaterTempTier.valueOf(tierName) }.getOrNull()?.let { tier ->
+                    WaterTempReading(
+                        tempF = o.getDouble("waterF"),
+                        tier = tier,
+                        label = o.optString("waterLabel", "Estimate"),
+                        detail = o.optString("waterDetail", ""),
+                    )
+                }
+            }
             val forecast = Forecast(
                 conditions = conditions,
                 placeLabel = o.getString("placeLabel"),
                 dateLabel = o.getString("dateLabel"),
                 airF = o.getDouble("airF"),
                 waterF = o.getDouble("waterF"),
+                waterTemp = waterTemp,
                 windMph = o.getDouble("windMph"),
                 cloudPct = o.getDouble("cloudPct"),
                 pressureInHg = o.getDouble("pressureInHg"),

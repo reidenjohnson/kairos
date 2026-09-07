@@ -5,8 +5,12 @@ import com.kairos.engine.SEBAGO_WATER_F
 import com.kairos.engine.SPECIES
 import com.kairos.engine.Side
 import com.kairos.engine.SpeciesFilter
+import com.kairos.engine.WaterTempReading
+import com.kairos.engine.WaterTempTier
+import com.kairos.engine.WaterUserReading
 import com.kairos.engine.activityMultiplier
 import com.kairos.engine.moonInfo
+import com.kairos.engine.resolve
 import com.kairos.engine.score
 import com.kairos.engine.scoreAll
 import com.kairos.engine.timeOfDayActivity
@@ -36,7 +40,18 @@ data class Forecast(
     val dateLabel: String,   // e.g. "2026-09-01"
     val airF: Double,
     val waterF: Double,
+    /**
+     * The resolved water temperature with its provenance (measured gauge, the user's
+     * own reading, or a labeled estimate). [waterF] is its [WaterTempReading.tempF];
+     * this carries the source label so the UI can be honest. Null only on the NWS
+     * backup path, where the plain [waterF] estimate is shown without a source chip.
+     */
+    val waterTemp: WaterTempReading? = null,
     val windMph: Double,
+    /** Wind FROM direction in degrees (0=N, 90=E …). Display/folklore only — not a
+     *  scoring input, so it never touches the cited engine weights. Null when the
+     *  source doesn't provide it (e.g. the NWS backup). */
+    val windDirDeg: Double? = null,
     val cloudPct: Double,
     val pressureInHg: Double,
     val pressureTrendInHg: Double,
@@ -139,7 +154,7 @@ object WeatherRepository {
     private fun buildUrl(place: Place): String =
         "https://api.open-meteo.com/v1/forecast" +
             "?latitude=${place.lat}&longitude=${place.lon}" +
-            "&hourly=temperature_2m,surface_pressure,wind_speed_10m,cloud_cover,precipitation" +
+            "&hourly=temperature_2m,surface_pressure,wind_speed_10m,wind_direction_10m,cloud_cover,precipitation" +
             "&current=temperature_2m,surface_pressure,wind_speed_10m,cloud_cover" +
             "&daily=sunrise,sunset" +
             "&timezone=auto&past_days=1&forecast_days=7" +
@@ -157,7 +172,11 @@ object WeatherRepository {
      */
     fun fetch(place: Place = Location.SEBAGO): Forecast {
         return try {
-            parse(JSONObject(httpGetJson(buildUrl(place))), place.label)
+            // Real measured water temp from a nearby USGS gauge, if one covers this
+            // water. Best-effort: a slow/missing gauge never blocks the forecast —
+            // the resolver falls to the user's reading or a labeled estimate.
+            val gauge = UsgsWater.fetch(place)
+            parse(JSONObject(httpGetJson(buildUrl(place))), place.label, gauge)
         } catch (primary: Exception) {
             // Open-Meteo's free tier goes down for minutes at a time. Rather than
             // strand the user on a stale cache, fall back to the US National
@@ -218,8 +237,19 @@ object WeatherRepository {
         throw last ?: java.io.IOException("Weather request failed")
     }
 
-    /** Visible for testing: turn an Open-Meteo response into a [Forecast]. */
-    internal fun parse(root: JSONObject, placeLabel: String): Forecast {
+    /**
+     * Visible for testing: turn an Open-Meteo response into a [Forecast]. [gauge] is
+     * an optional real USGS reading (null in tests / when none covers the water);
+     * [nowMs] is the clock used to age-check any user-entered reading (injectable for
+     * tests). The water temperature is resolved tiered: user reading → gauge →
+     * labeled estimate (see [com.kairos.engine.resolve]).
+     */
+    internal fun parse(
+        root: JSONObject,
+        placeLabel: String,
+        gauge: WaterTempReading? = null,
+        nowMs: Long = System.currentTimeMillis(),
+    ): Forecast {
         val current = root.getJSONObject("current")
         val currentTime = current.getString("time") // local to the place's timezone
 
@@ -228,6 +258,7 @@ object WeatherRepository {
         val pressures = hourly.getJSONArray("surface_pressure")
         val temps = hourly.getJSONArray("temperature_2m")
         val winds = hourly.getJSONArray("wind_speed_10m")
+        val windDirs = hourly.optJSONArray("wind_direction_10m") // optional — older fixtures omit it
         val clouds = hourly.getJSONArray("cloud_cover")
         val precips = hourly.optJSONArray("precipitation") // optional — older fixtures omit it
 
@@ -244,6 +275,8 @@ object WeatherRepository {
         val airF = roundTo(temps.getDouble(i), 1.0)
         val pressureInHg = roundTo(pressures.getDouble(i) * HPA_TO_INHG, 0.01)
         val windMph = roundTo(winds.getDouble(i), 1.0)
+        val windDirDeg = windDirs?.let { if (i < it.length()) it.optDouble(i, Double.NaN) else Double.NaN }
+            ?.takeUnless { it.isNaN() }
         val cloudPct = roundTo(clouds.getDouble(i), 5.0)
         val precipMmHr = precips?.let { roundTo(it.optDouble(i, 0.0), 0.1) } ?: 0.0
 
@@ -259,7 +292,17 @@ object WeatherRepository {
         val tempDropNext24hF = roundTo(temps.getDouble(i) - coldest, 1.0)
 
         val date = LocalDate.parse(currentTime.take(10))
-        val waterF = SEBAGO_WATER_F.getValue(date.monthValue).toDouble()
+        // Tiered water temperature. Average the recent air (the ~24h of history from
+        // past_days, up to the current hour) to nudge the estimate; a user reading or
+        // a real gauge overrides it. See [com.kairos.engine.resolve].
+        val recentAvgAirF = recentAvgAir(temps, i)
+        val waterReading = resolve(
+            month = date.monthValue,
+            recentAvgAirF = recentAvgAirF,
+            userReading = userWaterReading(nowMs),
+            gauge = gauge,
+        )
+        val waterF = waterReading.tempF
         val moon = moonInfo(date)
 
         // Sun times per day (for legal shooting hours + the timing curves), local to the place.
@@ -295,7 +338,9 @@ object WeatherRepository {
             dateLabel = date.toString(),
             airF = airF,
             waterF = waterF,
+            waterTemp = waterReading,
             windMph = windMph,
+            windDirDeg = windDirDeg,
             cloudPct = cloudPct,
             pressureInHg = pressureInHg,
             pressureTrendInHg = pressureTrendInHg,
@@ -306,12 +351,44 @@ object WeatherRepository {
             precipMmHr = precipMmHr,
             // Timing is a bonus layer — never let a glitch in it break the forecast.
             timing = runCatching {
-                computeDayTiming(times, temps, pressures, winds, clouds, date, sunrise, sunset, conditions)
+                computeDayTiming(times, temps, pressures, winds, clouds, date, sunrise, sunset, conditions, waterF)
             }.getOrNull(),
             weekTiming = runCatching {
-                computeWeekTiming(times, temps, pressures, winds, clouds, sunByDate, date, 7)
+                computeWeekTiming(times, temps, pressures, winds, clouds, sunByDate, date, 7, waterF)
             }.getOrElse { emptyList() },
         )
+    }
+
+    /**
+     * Average of the recent past air temps (from ~24h back through the current hour
+     * [i]) — how warm/cold it's actually been lately, which nudges the water
+     * estimate off its seasonal baseline. Null if no history is available.
+     */
+    private fun recentAvgAir(temps: org.json.JSONArray, i: Int): Double? {
+        val start = maxOf(0, i - 24)
+        if (i < start) return null
+        var sum = 0.0
+        var n = 0
+        for (k in start..minOf(i, temps.length() - 1)) {
+            sum += temps.getDouble(k); n++
+        }
+        return if (n > 0) sum / n else null
+    }
+
+    /**
+     * The user's hand-entered water reading as a [WaterTempReading], or null if none
+     * is on file or it's gone stale ([WaterUserReading.FRESH_DAYS]). Bridged from the
+     * app's Settings the same way the species filter is (a plain engine holder).
+     */
+    private fun userWaterReading(nowMs: Long): WaterTempReading? {
+        val f = WaterUserReading.freshTempF(nowMs) ?: return null
+        val age = WaterUserReading.ageDays(nowMs) ?: 0L
+        val detail = when (age) {
+            0L -> "You entered this today"
+            1L -> "You entered this yesterday"
+            else -> "You entered this $age days ago"
+        }
+        return WaterTempReading(f, WaterTempTier.USER, "Your reading", detail)
     }
 
     /** Parse "…T06:07" into a fractional hour (6.117), or null. */
@@ -341,10 +418,12 @@ object WeatherRepository {
         // conditions; for future days there is no "current," so pass null and the
         // day score becomes the peak of that day's hourly curve per side.
         current: Conditions?,
+        // The tiered water temp resolved once for the fetch (user/gauge/estimate).
+        // Water changes slowly, so today's value is a fine anchor across the week.
+        waterF: Double,
     ): DayTiming? {
         val srH = isoHour(sunriseIso) ?: return null
         val ssH = isoHour(sunsetIso) ?: return null
-        val waterF = SEBAGO_WATER_F.getValue(date.monthValue).toDouble()
         val moonIllum = moonInfo(date).illum
         // Honor the user's species filter so the hero + curve reflect only what they
         // target. Recomputed on each fetch; a filter change triggers a refresh.
@@ -413,13 +492,14 @@ object WeatherRepository {
         sunByDate: Map<LocalDate, Pair<String?, String?>>,
         startDate: LocalDate,
         days: Int,
+        waterF: Double,
     ): List<DayTiming> {
         val out = ArrayList<DayTiming>()
         for (d in 0 until days) {
             val date = startDate.plusDays(d.toLong())
             val (sr, ss) = sunByDate[date] ?: continue
             val dt = runCatching {
-                computeDayTiming(times, temps, pressures, winds, clouds, date, sr, ss, current = null)
+                computeDayTiming(times, temps, pressures, winds, clouds, date, sr, ss, current = null, waterF = waterF)
             }.getOrNull()
             if (dt != null) out.add(dt)
         }
