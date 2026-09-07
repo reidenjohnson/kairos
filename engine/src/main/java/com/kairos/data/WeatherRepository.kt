@@ -294,6 +294,23 @@ object WeatherRepository {
         for (k in i until end) coldest = minOf(coldest, temps.getDouble(k))
         val tempDropNext24hF = roundTo(temps.getDouble(i) - coldest, 1.0)
 
+        // When a real cold front arrives (local hour): after the pre-front warm peak, the
+        // first hour temp has fallen ~4°F. Null when there's no meaningful front.
+        val frontArrivalHour: Int? = run {
+            if (tempDropNext24hF < 6.0) return@run null
+            var peakIdx = i; var peakVal = temps.getDouble(i)
+            var coldIdx = i; var coldVal = temps.getDouble(i)
+            for (k in i until end) {
+                val t = temps.getDouble(k)
+                if (t >= peakVal) { peakVal = t; peakIdx = k }
+                if (t < coldVal) { coldVal = t; coldIdx = k }
+            }
+            if (coldIdx <= peakIdx) return@run null
+            var arr = -1
+            for (k in peakIdx..coldIdx) if (peakVal - temps.getDouble(k) >= 4.0) { arr = k; break }
+            if (arr < 0) null else times.getString(arr).substring(11, 13).toIntOrNull()
+        }
+
         val date = LocalDate.parse(currentTime.take(10))
         // Tiered water temperature. Average the recent air (the ~24h of history from
         // past_days, up to the current hour) to nudge the estimate; a user reading or
@@ -352,6 +369,7 @@ object WeatherRepository {
             sunrise = sunrise,
             sunset = sunset,
             precipMmHr = precipMmHr,
+            frontArrivalHour = frontArrivalHour,
             // Timing is a bonus layer — never let a glitch in it break the forecast.
             timing = runCatching {
                 computeDayTiming(times, temps, pressures, winds, clouds, date, sunrise, sunset, conditions, waterF)
