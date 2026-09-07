@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -87,10 +88,18 @@ fun SeasonsScreen(focusSpecies: String?) {
             item { SeasonsEmptyHint() }
         } else {
             item { OpenNowCard(speciesList, today) }
-            item { SectionTick("The season at a glance") }
-            item { GlanceTimeline(speciesList, today) { sheetSpecies = it } }
-            item { SectionTick("Coming up") }
-            item { ComingUp(speciesList, today) { sheetSpecies = it } }
+            item { SectionTick("Your seasons") }
+            // Per-species cards, open/soonest first, each with its methods as dated rows.
+            val ordered = speciesList.sortedWith(
+                compareBy(
+                    { orderRank(seasonStatus(it, today).kind) },
+                    { seasonStatus(it, today).daysUntilNext ?: Int.MAX_VALUE },
+                    { it.speciesName },
+                ),
+            )
+            items(ordered, key = { it.speciesName }) { s ->
+                SeasonSpeciesCard(s, today) { sheetSpecies = it }
+            }
         }
         item { Footer() }
         item { Spacer(Modifier.height(Space.lg)) }
@@ -203,167 +212,90 @@ private fun OpenNowCard(speciesList: List<SpeciesSeasons>, today: LocalDate) {
     }
 }
 
-private val MONTH_ABBR = arrayOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+/** Sort key: open first, then upcoming, then closed/none. */
+private fun orderRank(kind: SeasonStatusKind): Int = when (kind) {
+    SeasonStatusKind.OPEN -> 0
+    SeasonStatusKind.UPCOMING -> 1
+    else -> 2
+}
 
+/**
+ * One species as a readable card: its name + overall status, then each of its (filtered)
+ * method windows as a dated, color-coded row with a live per-window status. Far clearer
+ * than a single squished bar — you see exactly when archery / firearms / muzzleloader run.
+ * Tap for the full sheet (sources, disclaimers).
+ */
 @Composable
-private fun GlanceTimeline(speciesList: List<SpeciesSeasons>, today: LocalDate, onTap: (String) -> Unit) {
-    val withWindows = speciesList.filter { it.windows.isNotEmpty() }
-    if (withWindows.isEmpty()) {
-        InfoCard("No dated windows — see each species for details.")
-        return
-    }
-    val minStart = withWindows.flatMap { it.windows }.minOf { it.start }
-    val maxEnd = withWindows.flatMap { it.windows }.maxOf { it.end }
-    val rangeStart = minOf(minStart, today).withDayOfMonth(1)
-    val rangeEnd = maxOf(maxEnd, today)
-    val span = ChronoUnit.DAYS.between(rangeStart, rangeEnd).toFloat().coerceAtLeast(1f)
-    fun frac(d: LocalDate) = ChronoUnit.DAYS.between(rangeStart, d).toFloat() / span
-
-    val labelW = 96.dp
-
+private fun SeasonSpeciesCard(s: SpeciesSeasons, today: LocalDate, onTap: (String) -> Unit) {
+    val status = seasonStatus(s, today)
     Column(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(KairosColors.Surface)
             .border(1.dp, KairosColors.Line, RoundedCornerShape(16.dp))
-            .padding(vertical = 12.dp),
-    ) {
-        // Month header aligned to the same track as the rows.
-        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-            Spacer(Modifier.width(labelW))
-            BoxWithConstraints(Modifier.weight(1f).height(16.dp)) {
-                val w = maxWidth
-                var m = rangeStart.withDayOfMonth(1)
-                while (!m.isAfter(rangeEnd)) {
-                    Text(
-                        MONTH_ABBR[m.monthValue - 1],
-                        style = MaterialTheme.typography.labelSmall,
-                        color = KairosColors.Faint,
-                        modifier = Modifier.offset(x = w * frac(m) + 2.dp),
-                    )
-                    m = m.plusMonths(1)
-                }
-            }
-        }
-        Spacer(Modifier.height(6.dp))
-
-        withWindows.forEach { s ->
-            val open = seasonStatus(s, today).kind == SeasonStatusKind.OPEN
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onTap(s.speciesName) }
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    s.speciesName,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (open) KairosColors.Text else KairosColors.Dim,
-                    maxLines = 1,
-                    modifier = Modifier.width(labelW),
-                )
-                BoxWithConstraints(Modifier.weight(1f).height(14.dp)) {
-                    val w = maxWidth
-                    // Faint track
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .height(3.dp)
-                            .align(Alignment.Center)
-                            .clip(RoundedCornerShape(999.dp))
-                            .background(KairosColors.Line),
-                    )
-                    // Season window bars
-                    s.windows.forEach { win ->
-                        val x0 = w * frac(win.start)
-                        val barW = (w * frac(win.end) - w * frac(win.start)).coerceAtLeast(4.dp)
-                        val covers = !today.isBefore(win.start) && !today.isAfter(win.end)
-                        // Color each window by its method, so the timeline reads by method too.
-                        val mColor = methodColor(methodOf(win.label))
-                        Box(
-                            Modifier
-                                .offset(x = x0)
-                                .width(barW)
-                                .height(11.dp)
-                                .align(Alignment.CenterStart)
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(if (covers) mColor else mColor.copy(alpha = 0.45f)),
-                        )
-                    }
-                    // Today marker
-                    Box(
-                        Modifier
-                            .offset(x = w * frac(today))
-                            .width(2.dp)
-                            .fillMaxHeight()
-                            .align(Alignment.CenterStart)
-                            .background(KairosColors.Water),
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ComingUp(speciesList: List<SpeciesSeasons>, today: LocalDate, onTap: (String) -> Unit) {
-    val upcoming = speciesList
-        .mapNotNull { s ->
-            val st = seasonStatus(s, today)
-            st.nextWindow?.let { Triple(s, it, st.daysUntilNext ?: 0) }
-        }
-        .sortedBy { it.third }
-        .take(5)
-    if (upcoming.isEmpty()) {
-        InfoCard("Nothing new opening in this list — most windows are already open or past.")
-        return
-    }
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(KairosColors.Surface)
-            .border(1.dp, KairosColors.Line, RoundedCornerShape(16.dp)),
-    ) {
-        upcoming.forEachIndexed { i, (s, win, days) ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onTap(s.speciesName) }
-                    .padding(horizontal = 16.dp, vertical = 13.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(monthDay(win.start), style = MaterialTheme.typography.bodySmall, color = KairosColors.Faint, modifier = Modifier.width(64.dp))
-                Text("${s.speciesName} — ${win.label.lowercase()}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), maxLines = 1)
-                Box(
-                    Modifier
-                        .clip(RoundedCornerShape(999.dp))
-                        .border(1.dp, KairosColors.CardBorder, RoundedCornerShape(999.dp))
-                        .padding(horizontal = 8.dp, vertical = 3.dp),
-                ) {
-                    Text("$days days", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = KairosColors.Pine)
-                }
-            }
-            if (i < upcoming.lastIndex) {
-                Box(Modifier.fillMaxWidth().height(1.dp).background(KairosColors.Line))
-            }
-        }
-    }
-}
-
-@Composable
-private fun InfoCard(text: String) {
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(KairosColors.Surface)
-            .border(1.dp, KairosColors.Line, RoundedCornerShape(16.dp))
+            .clickable { onTap(s.speciesName) }
             .padding(16.dp),
     ) {
-        Text(text, style = MaterialTheme.typography.bodySmall, color = KairosColors.Dim)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                s.speciesName,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = KairosColors.Text,
+                modifier = Modifier.weight(1f),
+            )
+            StatusChip(status.kind)
+        }
+        if (s.windows.isNotEmpty()) {
+            Spacer(Modifier.height(10.dp))
+            s.windows.sortedBy { it.start }.forEachIndexed { i, w ->
+                if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(KairosColors.Line))
+                MethodWindowRow(w, today)
+            }
+        } else if (s.disclaimer.isNotEmpty()) {
+            Spacer(Modifier.height(6.dp))
+            Text(s.disclaimer, style = MaterialTheme.typography.bodySmall, color = KairosColors.Dim, lineHeight = 18.sp)
+        }
+    }
+}
+
+/** One method window inside a species card: color dot + method + dates + a status word. */
+@Composable
+private fun MethodWindowRow(w: SeasonWindow, today: LocalDate) {
+    val color = methodColor(methodOf(w.label))
+    val covers = !today.isBefore(w.start) && !today.isAfter(w.end)
+    val upcoming = w.start.isAfter(today)
+    val days = ChronoUnit.DAYS.between(today, w.start).toInt()
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier
+                .width(9.dp)
+                .height(9.dp)
+                .clip(RoundedCornerShape(3.dp))
+                .background(if (covers || upcoming) color else color.copy(alpha = 0.4f)),
+        )
+        Spacer(Modifier.width(11.dp))
+        Column(Modifier.weight(1f)) {
+            Text(w.label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = KairosColors.Text)
+            Text(
+                "${monthDay(w.start)} – ${monthDay(w.end)}" + if (w.note.isNotEmpty()) "  ·  ${w.note}" else "",
+                style = MaterialTheme.typography.labelSmall,
+                color = KairosColors.Faint,
+                lineHeight = 15.sp,
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        val (label, c) = when {
+            covers -> "Open" to color
+            upcoming && days <= 30 -> "in ${days}d" to KairosColors.Dim
+            upcoming -> monthDay(w.start) to KairosColors.Faint
+            else -> "Closed" to KairosColors.Faint
+        }
+        Text(label, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = c)
     }
 }
 
