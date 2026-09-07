@@ -10,6 +10,8 @@ import com.kairos.notify.NotificationScheduler
 import com.kairos.notify.Notifications
 import com.kairos.ui.KairosApp
 import com.kairos.ui.KairosColors
+import com.kairos.engine.HuntMethod
+import com.kairos.ui.MethodPrefs
 import com.kairos.ui.NotifyPrefs
 import com.kairos.ui.SpeciesPrefs
 import com.kairos.ui.WaterPrefs
@@ -46,6 +48,21 @@ class MainActivity : ComponentActivity() {
             if (on) NotificationScheduler.schedule(this) else NotificationScheduler.cancel(this)
         }
 
+        // Restore the hunting-method subscription (absent key = no filter, all methods on).
+        MethodPrefs.restore(
+            if (prefs.contains(METHOD_KEY_ENABLED)) {
+                prefs.getStringSet(METHOD_KEY_ENABLED, emptySet())
+                    ?.mapNotNull { runCatching { HuntMethod.valueOf(it) }.getOrNull() }?.toSet() ?: emptySet()
+            } else {
+                null
+            },
+        )
+        MethodPrefs.onChange = { methods ->
+            prefs.edit().apply {
+                if (methods == null) remove(METHOD_KEY_ENABLED) else putStringSet(METHOD_KEY_ENABLED, methods.map { it.name }.toSet())
+            }.apply()
+        }
+
         // Restore any hand-entered water-temp reading (temp + when it was taken), then
         // persist edits. The engine ages it out on its own once stale.
         val savedWater = if (prefs.contains(WATER_KEY_TEMP)) prefs.getFloat(WATER_KEY_TEMP, 0f).toDouble() else null
@@ -74,6 +91,7 @@ class MainActivity : ComponentActivity() {
         const val THEME_PREFS = "kairos_theme"
         const val THEME_KEY_DARK = "dark"
         const val SPECIES_KEY_ENABLED = "species_enabled"
+        const val METHOD_KEY_ENABLED = "method_enabled"
         const val NOTIFY_KEY_ENABLED = "notify_enabled"
         const val WATER_KEY_TEMP = "water_temp_f"
         const val WATER_KEY_AT = "water_temp_at"

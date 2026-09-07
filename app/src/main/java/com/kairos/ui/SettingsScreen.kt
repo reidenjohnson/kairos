@@ -7,6 +7,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -42,6 +43,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kairos.engine.HuntMethod
 import com.kairos.engine.SPECIES
 import com.kairos.engine.Side
 import com.kairos.engine.WaterUserReading
@@ -100,6 +102,10 @@ fun SettingsScreen() {
 
         sideSection(Side.HUNT, "Hunt")
         sideSection(Side.FISH, "Fish")
+
+        item { Spacer(Modifier.height(Space.sm)) }
+        item { Overline("Seasons you hunt", modifier = Modifier.padding(top = Space.sm)) }
+        item { MethodsCard() }
 
         item { Spacer(Modifier.height(Space.sm)) }
         item { Overline("Water temperature", modifier = Modifier.padding(top = Space.sm)) }
@@ -207,6 +213,59 @@ private fun WaterTempCard() {
                 enabled = text.isNotBlank(),
                 colors = ButtonDefaults.buttonColors(containerColor = KairosColors.Pine, contentColor = KairosColors.OnSeg),
             ) { Text("Save") }
+        }
+    }
+}
+
+/**
+ * "Seasons you hunt" — subscribe to the hunting methods you actually run (archery,
+ * firearms, muzzleloader, …), each in its coordinated color. Filters the Seasons screen
+ * to only those windows. Writes [MethodPrefs] (and the engine's MethodFilter).
+ */
+@Composable
+private fun MethodsCard() {
+    MethodPrefs.enabled // observe so switches recompose
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(KairosColors.Surface, RoundedCornerShape(16.dp)),
+    ) {
+        val methods = HuntMethod.entries
+        methods.forEachIndexed { i, m ->
+            val on = MethodPrefs.isEnabled(m)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { MethodPrefs.toggle(m) }
+                    .padding(horizontal = Space.lg, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    Modifier
+                        .width(10.dp)
+                        .height(10.dp)
+                        .background(methodColor(m), RoundedCornerShape(3.dp)),
+                )
+                Spacer(Modifier.width(Space.md))
+                Text(
+                    m.label,
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = if (on) KairosColors.Text else KairosColors.Faint,
+                )
+                Switch(
+                    checked = on,
+                    onCheckedChange = { MethodPrefs.toggle(m) },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = KairosColors.OnSeg,
+                        checkedTrackColor = KairosColors.Pine,
+                        uncheckedTrackColor = KairosColors.Surface2,
+                    ),
+                )
+            }
+            if (i < methods.lastIndex) {
+                Box(Modifier.fillMaxWidth().height(1.dp).padding(horizontal = Space.lg).background(KairosColors.Line))
+            }
         }
     }
 }

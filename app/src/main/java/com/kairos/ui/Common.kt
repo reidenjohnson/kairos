@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kairos.R
+import com.kairos.engine.HuntMethod
 import com.kairos.engine.Rating
 import java.time.Instant
 import java.time.LocalDate
@@ -37,6 +38,15 @@ internal fun ratingLabel(rating: Rating): String = when (rating) {
     Rating.GOOD -> "Good"
     Rating.FAIR -> "Fair"
     Rating.SLOW -> "Slow"
+}
+
+/** Coordinated color per hunting method, so a method reads the same everywhere. */
+internal fun methodColor(m: HuntMethod): Color = when (m) {
+    HuntMethod.ARCHERY -> KairosColors.Good          // green
+    HuntMethod.EXPANDED_ARCHERY -> KairosColors.Water // teal
+    HuntMethod.FIREARMS -> KairosColors.Fair          // amber
+    HuntMethod.MUZZLELOADER -> KairosColors.Error     // red — distinct from the greens
+    HuntMethod.OTHER -> KairosColors.Slow             // muted gray
 }
 
 @Composable

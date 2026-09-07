@@ -38,9 +38,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kairos.engine.MAINE_SEASONS
+import com.kairos.engine.MethodFilter
 import com.kairos.engine.SeasonStatusKind
 import com.kairos.engine.SeasonWindow
 import com.kairos.engine.SpeciesSeasons
+import com.kairos.engine.methodOf
 import com.kairos.engine.seasonStatus
 import com.kairos.engine.seasonsFor
 import java.time.LocalDate
@@ -63,9 +65,15 @@ fun SeasonsScreen(focusSpecies: String?) {
         if (focusSpecies != null) sheetSpecies = focusSpecies
     }
 
-    // Hunting only (fishing is open year-round, so it has no season table). Honor the
-    // species filter — reading SpeciesPrefs.isEnabled recomposes on change.
-    val speciesList = MAINE_SEASONS.filter { SpeciesPrefs.isEnabled(it.speciesName) }
+    // Hunting only (fishing is open year-round, so it has no season table). Honor BOTH the
+    // species filter and the "seasons you hunt" method subscription: narrow each species to
+    // its enabled-method windows, then drop any left with nothing open. Reading
+    // SpeciesPrefs / MethodPrefs recomposes on change.
+    MethodPrefs.enabled
+    val speciesList = MAINE_SEASONS
+        .filter { SpeciesPrefs.isEnabled(it.speciesName) }
+        .map { it.copy(windows = MethodFilter.windows(it)) }
+        .filter { it.windows.isNotEmpty() || it.noOpenSeason }
 
     LazyColumn(
         modifier = Modifier
@@ -272,6 +280,8 @@ private fun GlanceTimeline(speciesList: List<SpeciesSeasons>, today: LocalDate, 
                         val x0 = w * frac(win.start)
                         val barW = (w * frac(win.end) - w * frac(win.start)).coerceAtLeast(4.dp)
                         val covers = !today.isBefore(win.start) && !today.isAfter(win.end)
+                        // Color each window by its method, so the timeline reads by method too.
+                        val mColor = methodColor(methodOf(win.label))
                         Box(
                             Modifier
                                 .offset(x = x0)
@@ -279,7 +289,7 @@ private fun GlanceTimeline(speciesList: List<SpeciesSeasons>, today: LocalDate, 
                                 .height(11.dp)
                                 .align(Alignment.CenterStart)
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(if (covers) KairosColors.Water else KairosColors.Faint.copy(alpha = 0.5f)),
+                                .background(if (covers) mColor else mColor.copy(alpha = 0.45f)),
                         )
                     }
                     // Today marker
@@ -421,13 +431,14 @@ private fun SpeciesSeasonSheet(s: SpeciesSeasons, today: LocalDate, onDismiss: (
 @Composable
 private fun WindowRow(w: SeasonWindow, today: LocalDate) {
     val covers = !today.isBefore(w.start) && !today.isAfter(w.end)
+    val mColor = methodColor(methodOf(w.label))
     Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(
             Modifier
                 .width(8.dp)
                 .height(8.dp)
                 .clip(RoundedCornerShape(4.dp))
-                .background(if (covers) KairosColors.Water else KairosColors.Faint.copy(alpha = 0.5f)),
+                .background(if (covers) mColor else mColor.copy(alpha = 0.5f)),
         )
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
