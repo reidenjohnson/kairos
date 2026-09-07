@@ -663,22 +663,22 @@ private fun SpeciesCard(
     val status = seasonsFor(row.species.name)?.let { seasonStatus(it, today) }
     val radius = if (emphasized) 22.dp else 18.dp
     val shape = RoundedCornerShape(radius)
-    val glowColor = KairosColors.Water
     val base = Modifier
         .fillMaxWidth()
         .shadow(
-            elevation = if (!emphasized) 3.dp else if (glow) 22.dp else 12.dp,
+            elevation = if (emphasized) 12.dp else 3.dp,
             shape = shape,
             clip = false,
-            spotColor = if (glow) glowColor else KairosColors.ShadowSpot,
-            ambientColor = if (glow) glowColor else KairosColors.ShadowSpot,
+            spotColor = KairosColors.ShadowSpot,
+            ambientColor = KairosColors.ShadowSpot,
         )
         .clip(shape)
         .clickable { onOpenDetail(row.species.name) }
     val styled = if (emphasized) {
         base
             .background(Brush.verticalGradient(listOf(KairosColors.CardTop, KairosColors.CardBottom)))
-            .border(1.dp, if (glow) glowColor.copy(alpha = 0.55f) else KairosColors.CardBorder, shape)
+            // The top pick gets a clean accent ring, not a spilling glow.
+            .border(if (glow) 1.5.dp else 1.dp, if (glow) KairosColors.Water else KairosColors.CardBorder, shape)
     } else {
         base
             .background(KairosColors.Surface)
