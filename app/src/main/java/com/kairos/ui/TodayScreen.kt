@@ -139,14 +139,8 @@ private fun ForecastList(
     ) {
         item { Spacer(Modifier.height(Space.xs)) }
         if (!ready.live && !refreshing) item { OfflineBanner(ready.savedAtMillis) }
-        // Header + conditions read as one context block (tight), set apart from the hero below.
-        item {
-            Column {
-                Header(forecast, ready.savedAtMillis, ready.live)
-                Spacer(Modifier.height(Space.md))
-                WeatherCard(forecast, onOpenWeather)
-            }
-        }
+        // One compact context block: the place + weather merged into a single card.
+        item { WeatherCard(forecast, ready.savedAtMillis, ready.live, onOpenWeather) }
         forecast.timing?.let { t -> item { TodayHero(t, forecast.weekTiming, onOpenSide) } }
         if (forecast.legalShootingHours != null) {
             item { LegalLightCard(forecast) }
@@ -322,52 +316,15 @@ private fun EmptySpeciesHint() {
     }
 }
 
-@Composable
-private fun Header(f: Forecast, savedAtMillis: Long, live: Boolean) {
-    Column {
-        Overline(dateKicker(), color = KairosColors.Water)
-        Spacer(Modifier.height(Space.xs))
-        Text(
-            f.placeLabel,
-            fontFamily = Bricolage,
-            fontSize = 30.sp,
-            fontWeight = FontWeight.ExtraBold,
-            letterSpacing = (-0.8).sp,
-            lineHeight = 34.sp,
-            color = KairosColors.Text,
-        )
-        Spacer(Modifier.height(Space.xs))
-        Text(
-            "${if (live) "Updated" else "Cached"} ${timeText(savedAtMillis)}  ·  pull to refresh",
-            style = MaterialTheme.typography.bodySmall,
-            color = KairosColors.Faint,
-        )
-        if (f.source == "NWS") {
-            Spacer(Modifier.height(Space.xs))
-            Text(
-                "Backup source (NWS) — Open-Meteo unavailable; no timing curve",
-                style = MaterialTheme.typography.bodySmall,
-                color = KairosColors.Fair,
-            )
-        }
-    }
-}
-
-/** "THU · SEP 5" — the header kicker (Overline uppercases it). */
-private fun dateKicker(): String {
-    val d = LocalDate.now()
-    val dow = d.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
-    return "$dow · ${monthDay(d)}"
-}
-
 /**
- * The weather card — a single professional, tappable summary that replaces the old
- * loose chip row: the current temp big, a moon read, the three inputs that move the
- * score (pressure+trend, wind, cold front), and a footer of water + sun times. Tap to
- * open the full [WeatherScreen].
+ * The weather card — a single professional, tappable summary. Now also carries the
+ * PLACE (merged in from the old header, so there's one compact block, not two): the
+ * location + a small updated line, then the current temp big, a moon read, the three
+ * inputs that move the score (pressure+trend, wind, cold front), and a footer of water
+ * + sun times. Tap to open the full [WeatherScreen].
  */
 @Composable
-private fun WeatherCard(f: Forecast, onClick: () -> Unit) {
+private fun WeatherCard(f: Forecast, savedAtMillis: Long, live: Boolean, onClick: () -> Unit) {
     val fmt = java.time.format.DateTimeFormatter.ofPattern("h:mm a")
     Column(
         Modifier
@@ -380,9 +337,34 @@ private fun WeatherCard(f: Forecast, onClick: () -> Unit) {
             .padding(16.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Overline("Weather", color = KairosColors.Water)
-            Spacer(Modifier.weight(1f))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    f.placeLabel,
+                    fontFamily = Bricolage,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = (-0.4).sp,
+                    lineHeight = 24.sp,
+                    color = KairosColors.Text,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    "${if (live) "Updated" else "Cached"} ${timeText(savedAtMillis)}  ·  pull to refresh",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = KairosColors.Faint,
+                )
+            }
+            Spacer(Modifier.width(Space.sm))
             Text("Details ›", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = KairosColors.Water)
+        }
+        if (f.source == "NWS") {
+            Spacer(Modifier.height(Space.xs))
+            Text(
+                "Backup source (NWS) — no timing curve",
+                style = MaterialTheme.typography.labelSmall,
+                color = KairosColors.Fair,
+            )
         }
         Spacer(Modifier.height(Space.md))
         Row(verticalAlignment = Alignment.Bottom) {

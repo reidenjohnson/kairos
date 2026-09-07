@@ -164,12 +164,19 @@ private fun InteractiveTimingChart(days: List<DayTiming>) {
     val huntAt = byHour[activeHour]?.huntScore ?: 0
     val fishAt = byHour[activeHour]?.fishScore ?: 0
 
-    // Day strip.
+    // Day strip — the whole week, evenly split so it fits without scrolling. A dot marks
+    // the best hunt day (green) and the best fish day (blue) so you don't have to hunt for it.
+    val bestHunt = days.indices.maxByOrNull { days[it].huntToday }
+    val bestFish = days.indices.maxByOrNull { days[it].fishToday }
     Row(
-        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
     ) {
-        days.forEachIndexed { i, d -> DayChip(d, i == sel) { sel = i; scrub = null } }
+        days.forEachIndexed { i, d ->
+            Box(Modifier.weight(1f)) {
+                DayChip(d, i == sel, isHuntBest = i == bestHunt, isFishBest = i == bestFish) { sel = i; scrub = null }
+            }
+        }
     }
     Spacer(Modifier.height(12.dp))
 
@@ -279,19 +286,35 @@ private fun ReadoutDot(label: String, value: Int, color: Color) {
 }
 
 @Composable
-private fun DayChip(day: DayTiming, selected: Boolean, onClick: () -> Unit) {
+private fun DayChip(
+    day: DayTiming,
+    selected: Boolean,
+    isHuntBest: Boolean,
+    isFishBest: Boolean,
+    onClick: () -> Unit,
+) {
     val bg = if (selected) KairosColors.SegBottom else KairosColors.Surface.copy(alpha = 0.55f)
     val fg = if (selected) KairosColors.OnSeg else KairosColors.Dim
     Column(
         Modifier
+            .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
             .background(bg, RoundedCornerShape(10.dp))
             .border(1.dp, if (selected) Color.Transparent else KairosColors.CardBorder, RoundedCornerShape(10.dp))
             .clickable { onClick() }
-            .padding(horizontal = 12.dp, vertical = 7.dp),
+            .padding(horizontal = 2.dp, vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(dayLabel(day.date), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = fg)
+        Text(dowTop(day.date), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = fg, maxLines = 1)
+        Text("${day.date.dayOfMonth}", style = MaterialTheme.typography.labelSmall, color = fg.copy(alpha = 0.75f), maxLines = 1)
+        // Best-day dots: green = best hunt day, blue = best fish day.
+        Spacer(Modifier.height(3.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            if (isHuntBest) Box(Modifier.width(5.dp).height(5.dp).clip(RoundedCornerShape(3.dp)).background(KairosColors.Pine))
+            if (isFishBest) Box(Modifier.width(5.dp).height(5.dp).clip(RoundedCornerShape(3.dp)).background(KairosColors.Water))
+            // Keep the row height stable when a day has no dot.
+            if (!isHuntBest && !isFishBest) Box(Modifier.height(5.dp))
+        }
     }
 }
 
@@ -304,6 +327,12 @@ private fun dayLabel(date: LocalDate): String {
     if (date == LocalDate.now()) return "Today"
     val dow = date.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
     return "$dow ${date.dayOfMonth}"
+}
+
+/** The top line of a day chip: "Today", else the short weekday ("Sun"). */
+private fun dowTop(date: LocalDate): String {
+    if (date == LocalDate.now()) return "Today"
+    return date.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
 }
 
 private fun fmtWindow(w: IntRange): String = "${fmtHour(w.first)}–${fmtHour(w.last + 1)}"
