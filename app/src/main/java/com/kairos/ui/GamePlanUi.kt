@@ -18,6 +18,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,6 +34,7 @@ import com.kairos.advice.GamePlan
 import com.kairos.advice.buildGamePlan
 import com.kairos.advice.buildSidePlan
 import com.kairos.data.Forecast
+import com.kairos.engine.HuntMethod
 import com.kairos.engine.SPECIES
 import com.kairos.engine.Side
 import java.time.LocalDate
@@ -111,8 +116,12 @@ fun GamePlanScreen(state: UiState, speciesName: String?, side: Side?) {
     val c = ready.forecast.conditions
     val precip = ready.forecast.precipMmHr
     val sp = speciesName?.let { name -> SPECIES.firstOrNull { it.name == name } ?: return }
+    // Deer plans are weapon-aware: the hunter picks archery / rifle / muzzleloader and the
+    // How adapts. Default to the first of those the user subscribes to in Settings.
+    val isDeer = sp?.name == "Whitetail deer"
+    var method by remember(sp) { mutableStateOf(if (isDeer) defaultDeerMethod() else null) }
     val plan = if (sp != null) {
-        buildGamePlan(sp, c, LocalDate.now(), ready.forecast.timing, precip)
+        buildGamePlan(sp, c, LocalDate.now(), ready.forecast.timing, precip, method)
     } else {
         buildSidePlan(side ?: Side.FISH, c, LocalDate.now(), ready.forecast.timing, precip)
     }
@@ -136,6 +145,10 @@ fun GamePlanScreen(state: UiState, speciesName: String?, side: Side?) {
             lineHeight = 28.sp,
             color = KairosColors.Text,
         )
+        if (isDeer) {
+            Spacer(Modifier.height(14.dp))
+            MethodSelector(selected = method) { method = it }
+        }
         Spacer(Modifier.height(16.dp))
         WeatherWindowCallout(ready.forecast, planSide)
         plan.sections.forEach { s ->
@@ -165,6 +178,45 @@ fun GamePlanScreen(state: UiState, speciesName: String?, side: Side?) {
             color = KairosColors.Faint,
         )
         Spacer(Modifier.height(28.dp))
+    }
+}
+
+/** The deer weapons the plan page lets you switch between, in season order. */
+private val DEER_METHODS = listOf(HuntMethod.ARCHERY, HuntMethod.FIREARMS, HuntMethod.MUZZLELOADER)
+
+/** Default the plan to the first weapon the user actually subscribes to (else archery). */
+private fun defaultDeerMethod(): HuntMethod =
+    DEER_METHODS.firstOrNull { MethodPrefs.isEnabled(it) } ?: HuntMethod.ARCHERY
+
+/**
+ * A small segmented control to pick the deer weapon — archery, rifle, or muzzleloader —
+ * each in its coordinated method color. Switching it rebuilds the plan's "how".
+ */
+@Composable
+private fun MethodSelector(selected: HuntMethod?, onPick: (HuntMethod) -> Unit) {
+    Row(Modifier.fillMaxWidth()) {
+        DEER_METHODS.forEachIndexed { i, m ->
+            val active = m == selected
+            val color = methodColor(m)
+            if (i > 0) Spacer(Modifier.width(8.dp))
+            Box(
+                Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(if (active) color.copy(alpha = 0.16f) else KairosColors.Surface)
+                    .border(1.dp, if (active) color else KairosColors.Line, RoundedCornerShape(999.dp))
+                    .clickable { onPick(m) }
+                    .padding(vertical = 9.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    m.label,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = if (active) color else KairosColors.Dim,
+                )
+            }
+        }
     }
 }
 

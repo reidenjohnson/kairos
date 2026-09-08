@@ -2,6 +2,7 @@ package com.kairos.advice
 
 import com.kairos.data.DayTiming
 import com.kairos.engine.Conditions
+import com.kairos.engine.HuntMethod
 import com.kairos.engine.Side
 import com.kairos.engine.Species
 import java.time.LocalDate
@@ -145,9 +146,20 @@ private fun hr(h24: Int): String {
  * Build a species' plan. Deep content where it exists; a true, trait-driven plan
  * otherwise (never filler, same season/weather/light reasoning).
  */
-fun buildGamePlan(sp: Species, c: Conditions, date: LocalDate, timing: DayTiming?, precipMmHr: Double = 0.0): GamePlan {
+fun buildGamePlan(
+    sp: Species,
+    c: Conditions,
+    date: LocalDate,
+    timing: DayTiming?,
+    precipMmHr: Double = 0.0,
+    /** For deer: which weapon the hunt is planned around, so the How adapts (archery is a
+     *  close-range wind/scent game, a rifle reaches out, muzzleloader is one late shot).
+     *  null = a general, method-agnostic plan. Ignored by species without method choices. */
+    method: HuntMethod? = null,
+): GamePlan {
     val w = WeatherRead(c, precipMmHr)
     return when (sp.name) {
+        "Whitetail deer" -> whitetailPlan(sp, c, w, date, timing, method)
         "Largemouth bass" -> largemouthPlan(sp, c, w, date, timing)
         "Smallmouth bass" -> smallmouthPlan(sp, c, w, date, timing)
         "Walleye" -> walleyePlan(sp, c, w, date, timing)
@@ -160,7 +172,6 @@ fun buildGamePlan(sp: Species, c: Conditions, date: LocalDate, timing: DayTiming
         "White perch" -> whitePerchPlan(sp, c, w, date, timing)
         "Black crappie" -> blackCrappiePlan(sp, c, w, date, timing)
         "Panfish (sunfish)" -> sunfishPlan(sp, c, w, date, timing)
-        "Whitetail deer" -> whitetailPlan(sp, c, w, date, timing)
         "Moose" -> moosePlan(sp, c, w, date, timing)
         "Elk" -> elkPlan(sp, c, w, date, timing)
         "Black bear" -> blackBearPlan(sp, c, w, date, timing)

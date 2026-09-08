@@ -2,6 +2,7 @@ package com.kairos.advice
 
 import com.kairos.data.DayTiming
 import com.kairos.engine.Conditions
+import com.kairos.engine.HuntMethod
 import com.kairos.engine.Side
 import com.kairos.engine.Species
 import java.time.LocalDate
@@ -48,6 +49,7 @@ internal fun whitetailPlan(
     w: WeatherRead,
     date: LocalDate,
     timing: DayTiming?,
+    method: HuntMethod? = null,
 ): GamePlan {
     val phase = deerPhase(date)
     val windows = windowsText(timing, Side.HUNT)
@@ -139,16 +141,78 @@ internal fun whitetailPlan(
 
     val whyMore = "Two things drive a deer's day: staying comfortable, and, in November, the urge to breed. Comfort explains the weather rules: they move when it's cool and hide when it's hot or windy. The breeding urge is set by the shortening days, which is why mid-November produces daylight movement no other time of year can, weather or not."
 
+    // The weapon section — only when the hunter has picked a method on the plan page. It
+    // makes the "how" concrete to the tool: archery is a close-range wind/scent game, a
+    // rifle trades close for range, a muzzleloader is one careful late-season shot.
+    val weaponSection = weaponSection(method, phase)
+
+    val baseSections = listOf(
+        PlanSection(PlanKind.WHERE, "Where", whereBrief, whereMore),
+        PlanSection(PlanKind.WHEN, "When", whenBrief, whenMore),
+        PlanSection(PlanKind.HOW, "How", howBrief, howMore),
+        PlanSection(PlanKind.WHY, "Why", whyBrief, whyMore),
+    )
+    // Slot the weapon section right after How, so it reads as "how, specifically with this."
+    val sections = if (weaponSection == null) baseSections else
+        baseSections.subList(0, 3) + weaponSection + baseSections.subList(3, 4)
+
     return GamePlan(
         phaseLabel = phase.label,
         headline = headline,
         tacticLine = tacticLine,
         whyBrief = whyBrief,
-        sections = listOf(
-            PlanSection(PlanKind.WHERE, "Where", whereBrief, whereMore),
-            PlanSection(PlanKind.WHEN, "When", whenBrief, whenMore),
-            PlanSection(PlanKind.HOW, "How", howBrief, howMore),
-            PlanSection(PlanKind.WHY, "Why", whyBrief, whyMore),
-        ),
+        sections = sections,
     )
+}
+
+/**
+ * Concrete, do-this guidance for the chosen weapon, in the father-showing-the-ropes
+ * voice. Returns null for a general (method-agnostic) plan or a non-deer method.
+ * Grounded in the standard consensus each method is hunted by — close-range scent/wind
+ * discipline for the bow, reach and shooting lanes for the rifle, one dry late shot for
+ * the smokepole.
+ */
+private fun weaponSection(method: HuntMethod?, phase: DeerPhase): PlanSection? = when (method) {
+    HuntMethod.ARCHERY, HuntMethod.EXPANDED_ARCHERY -> {
+        val expanded = method == HuntMethod.EXPANDED_ARCHERY
+        PlanSection(
+            PlanKind.HOW,
+            if (expanded) "Expanded archery" else "Archery",
+            "A close game — 20 to 30 yards. It's all wind, scent, and getting tight to where deer already want to be.",
+            buildString {
+                append("The bow only works up close, so everything is about the setup. Hang your stand or set your blind right on the bed-to-food trail or a funnel, close enough for a 20-to-30-yard shot, and trim two or three quiet shooting lanes before the hunt, not during it. ")
+                append("Play the wind like your hunt depends on it, because it does: your scent has to blow away from the deer and their bedding. Get in clean and scent-free, and stay dead still — a deer at this range catches the smallest movement. ")
+                append(
+                    when (phase) {
+                        DeerPhase.EARLY -> "Archery season is the early food pattern, so hunt the evening food source and the trails feeding it; that's your highest-odds sit. "
+                        DeerPhase.PRE_RUT, DeerPhase.RUT -> "In the rut you can add a stand on a funnel and rattle or grunt to pull a buck into bow range. "
+                        else -> "Late in the bow season, sit tight to food in the last light. "
+                    },
+                )
+                append("Wait for a broadside or quartering-away deer, draw when its head is behind a tree, and aim a touch low on an alert one — a whitetail can drop at the sound of the string.")
+                if (expanded) append(" Expanded-archery zones are the suburban areas closed to firearms; know the zone lines and the landowner-permission rules before you hunt.")
+            },
+        )
+    }
+    HuntMethod.FIREARMS -> PlanSection(
+        PlanKind.HOW,
+        "Firearms (rifle)",
+        "With a rifle you can reach out — hunt where you can see, and let range do the work.",
+        buildString {
+            append("Firearms season is your chance to hunt open country: field edges, clearcuts, log landings, power-line cuts, and the funnels that connect them. Post where you can see and cover the openings a deer has to cross, and don't crowd the cover the way a bowhunter has to. ")
+            append("Firearms season lands squarely in the rut in most of Maine, so an all-day sit on a pinch point near doe bedding is the play — a cruising buck can step out at any hour. ")
+            append("Take a steady rest every time, know your rifle's zero and your holds out to the range you'll actually shoot, and pass the low-odds running shot for the standing, broadside one. On the cold, still mornings behind a front, a slow still-hunt through good cover can put you on a bedded buck.")
+        },
+    )
+    HuntMethod.MUZZLELOADER -> PlanSection(
+        PlanKind.HOW,
+        "Muzzleloader",
+        "One shot, mid-range, and it's late and cold — hunt tight to food in the last light.",
+        buildString {
+            append("Muzzleloader season falls in the late season, when the rut is over and deer bed close to high-calorie food and move as little as they can. Set up right on that food and the trails to it, and favor south-facing slopes that hold the afternoon warmth; the last two hours of light are the window. ")
+            append("You get one shot, so make it count: keep your powder, primer, and muzzle bone-dry in damp or snowy weather, get comfortably inside 100 yards, take a solid rest, and be sure before you touch it off — a fast, clean second shot isn't coming. ")
+            append("A cold, calm afternoon after a front is the best card you can be dealt this time of year.")
+        },
+    )
+    else -> null
 }
