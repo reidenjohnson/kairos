@@ -19,13 +19,28 @@ private enum class BearPhase(val label: String) {
     OFF("Off-season"),
 }
 
+/** How the hunter is going after the bear — the three legal Maine methods, each hunted
+ *  very differently. Chosen on the plan page; null = a general, method-agnostic plan. */
+enum class BearApproach(val label: String) {
+    BAIT("Bait"),
+    HOUNDS("Hounds"),
+    STALK("Spot & stalk"),
+}
+
 private fun bearPhase(date: LocalDate): BearPhase = when (date.monthValue) {
     8, 9 -> BearPhase.BAIT
     10, 11 -> BearPhase.MAST
     else -> BearPhase.OFF
 }
 
-internal fun blackBearPlan(sp: Species, c: Conditions, w: WeatherRead, date: LocalDate, timing: DayTiming?): GamePlan {
+internal fun blackBearPlan(
+    sp: Species,
+    c: Conditions,
+    w: WeatherRead,
+    date: LocalDate,
+    timing: DayTiming?,
+    approach: BearApproach? = null,
+): GamePlan {
     val phase = bearPhase(date)
     val warm = c.airF > 65.0
     val windows = windowsText(timing, Side.HUNT)
@@ -68,7 +83,7 @@ internal fun blackBearPlan(sp: Species, c: Conditions, w: WeatherRead, date: Loc
         )
     }
 
-    return fourSectionPlan(
+    val base = fourSectionPlan(
         phase.label, headline, tacticLine, whyBrief, whereBrief, whereMore,
         buildString {
             append("Best window today is $windows, and the last two hours are the money. ")
@@ -82,4 +97,32 @@ internal fun blackBearPlan(sp: Species, c: Conditions, w: WeatherRead, date: Loc
         howMore = "Wind is everything with bears: they live by their nose, so a stand is only as good as its wind. Get in early, sit still, and stay quiet, because bears circle downwind and bust anything that is off. On natural food, slow down and read fresh sign to find which trees or fields the bears are actually working right now.",
         whyMore = "A black bear's fall is one long feeding push to store fat before it dens, so food rules everything: bait and berries early, hard mast later. They are heat-shy and extremely scent-driven, so they feed in the cool low-light hours and after dark and give any human scent a wide, downwind berth. Play the wind, hunt the best food, and hunt the last hour of light, and the odds tilt your way.",
     )
+    // Slot the method walkthrough right after How when the hunter has picked one.
+    val section = bearApproachSection(approach)
+    return if (section == null) base else
+        base.copy(sections = base.sections.subList(0, 3) + section + base.sections.subList(3, 4))
+}
+
+/**
+ * Concrete, do-this guidance for the chosen bear method, father-showing-the-ropes voice.
+ * Null for a general plan. Grounded in how each Maine method is actually hunted: the
+ * evening bait sit, running a fresh track with hounds, and glassing natural food.
+ */
+private fun bearApproachSection(approach: BearApproach?): PlanSection? = when (approach) {
+    BearApproach.BAIT -> PlanSection(
+        PlanKind.HOW, "Bait",
+        "Sit an active bait from mid-afternoon to last light, wind in your face, dead-still — a mature bear often commits in the final minutes.",
+        "Bait is Maine's highest-odds bear hunt, but it lives and dies on the wind and on the bait being hit. Keep it fresh and read the sign: a torn-up bait cleaned out overnight means a bear on a schedule; hits only after dark mean you're close but he's nocturnal, so back off the pressure. Hang your stand so your scent never crosses the trail the bear uses to approach — he'll circle to wind the bait before he steps in. Get in early and quiet in the afternoon, settle, and do not move: bears come late, and the last ten minutes of legal light are the money.",
+    )
+    BearApproach.HOUNDS -> PlanSection(
+        PlanKind.HOW, "Hounds",
+        "Strike a fresh track in the cool morning, turn the pack loose, and be ready to move fast and shoot quick once they tree or bay.",
+        "Hound hunting is a morning game and a running game: strike on a fresh, cool-weather track before the day heats and the scent burns off, cut roads and edges for a bear that crossed overnight, and let the dogs do the work. When they tree or bay, close the distance fast over rough ground and be ready for a quick, sure shot at a treed or held bear — and to call the dogs off a sow with cubs. A cool, damp morning holds scent best and is the day to run; heat shuts it down.",
+    )
+    BearApproach.STALK -> PlanSection(
+        PlanKind.HOW, "Spot & stalk",
+        "Glass the natural food at first and last light, then slip in slow and downwind for a shot at a feeding bear.",
+        "Spot-and-stalk and still-hunting are the natural-food game, best once the mast drops: glass beech ridges, oak flats, standing crops, old orchards, and clearcuts full of berries in the low light and pick out a feeding bear before you move. Then close slow and quiet, always into the wind, using terrain and cover, and read fresh scat and torn logs to stay on the food the bears are actually working. It's the hardest way to kill a Maine bear and the most active — cover ground, hunt the wind, and be patient on the glass.",
+    )
+    else -> null
 }

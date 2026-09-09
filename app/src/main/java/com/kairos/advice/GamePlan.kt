@@ -156,10 +156,13 @@ fun buildGamePlan(
      *  close-range wind/scent game, a rifle reaches out, muzzleloader is one late shot).
      *  null = a general, method-agnostic plan. Ignored by species without method choices. */
     method: HuntMethod? = null,
+    /** For bear: which method (bait / hounds / spot & stalk) the hunt is planned around. */
+    bearApproach: BearApproach? = null,
 ): GamePlan {
     val w = WeatherRead(c, precipMmHr)
     return when (sp.name) {
         "Whitetail deer" -> whitetailPlan(sp, c, w, date, timing, method)
+        "Black bear" -> blackBearPlan(sp, c, w, date, timing, bearApproach)
         "Largemouth bass" -> largemouthPlan(sp, c, w, date, timing)
         "Smallmouth bass" -> smallmouthPlan(sp, c, w, date, timing)
         "Walleye" -> walleyePlan(sp, c, w, date, timing)
@@ -174,12 +177,12 @@ fun buildGamePlan(
         "Panfish (sunfish)" -> sunfishPlan(sp, c, w, date, timing)
         "Moose" -> moosePlan(sp, c, w, date, timing)
         "Elk" -> elkPlan(sp, c, w, date, timing)
-        "Black bear" -> blackBearPlan(sp, c, w, date, timing)
         "Snowshoe hare" -> snowshoeHarePlan(sp, c, w, date, timing)
         "Upland birds" -> uplandPlan(sp, c, w, date, timing)
         "Waterfowl" -> waterfowlPlan(sp, c, w, date, timing)
         "Wild turkey" -> wildTurkeyPlan(sp, c, w, date, timing)
         "Coyote" -> coyotePlan(sp, c, w, date, timing)
+        // "Black bear" handled above (takes the approach choice).
         else -> genericPlan(sp, c, w, date, timing)
     }
 }

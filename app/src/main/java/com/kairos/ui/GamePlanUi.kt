@@ -30,6 +30,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.Color
+import com.kairos.advice.BearApproach
 import com.kairos.advice.GamePlan
 import com.kairos.advice.buildGamePlan
 import com.kairos.advice.buildSidePlan
@@ -119,9 +121,11 @@ fun GamePlanScreen(state: UiState, speciesName: String?, side: Side?) {
     // Deer plans are weapon-aware: the hunter picks archery / rifle / muzzleloader and the
     // How adapts. Default to the first of those the user subscribes to in Settings.
     val isDeer = sp?.name == "Whitetail deer"
+    val isBear = sp?.name == "Black bear"
     var method by remember(sp) { mutableStateOf(if (isDeer) defaultDeerMethod() else null) }
+    var bearApproach by remember(sp) { mutableStateOf(if (isBear) BearApproach.BAIT else null) }
     val plan = if (sp != null) {
-        buildGamePlan(sp, c, LocalDate.now(), ready.forecast.timing, precip, method)
+        buildGamePlan(sp, c, LocalDate.now(), ready.forecast.timing, precip, method, bearApproach)
     } else {
         buildSidePlan(side ?: Side.FISH, c, LocalDate.now(), ready.forecast.timing, precip)
     }
@@ -147,7 +151,16 @@ fun GamePlanScreen(state: UiState, speciesName: String?, side: Side?) {
         )
         if (isDeer) {
             Spacer(Modifier.height(14.dp))
-            MethodSelector(selected = method) { method = it }
+            SegmentedPills(
+                options = DEER_METHODS.map { it.label to methodColor(it) },
+                selectedIndex = DEER_METHODS.indexOf(method),
+            ) { method = DEER_METHODS[it] }
+        } else if (isBear) {
+            Spacer(Modifier.height(14.dp))
+            val opts = BEAR_APPROACHES.map { it.first.label to it.second }
+            SegmentedPills(options = opts, selectedIndex = BEAR_APPROACHES.indexOfFirst { it.first == bearApproach }) {
+                bearApproach = BEAR_APPROACHES[it].first
+            }
         }
         Spacer(Modifier.height(16.dp))
         WeatherWindowCallout(ready.forecast, planSide)
@@ -188,16 +201,23 @@ private val DEER_METHODS = listOf(HuntMethod.ARCHERY, HuntMethod.FIREARMS, HuntM
 private fun defaultDeerMethod(): HuntMethod =
     DEER_METHODS.firstOrNull { MethodPrefs.isEnabled(it) } ?: HuntMethod.ARCHERY
 
+/** The bear methods offered on the plan page, each with a distinct coordinated color. */
+private val BEAR_APPROACHES: List<Pair<BearApproach, Color>> = listOf(
+    BearApproach.BAIT to KairosColors.Fair,   // amber
+    BearApproach.HOUNDS to KairosColors.Water, // teal
+    BearApproach.STALK to KairosColors.Good,   // green
+)
+
 /**
- * A small segmented control to pick the deer weapon — archery, rifle, or muzzleloader —
- * each in its coordinated method color. Switching it rebuilds the plan's "how".
+ * A small segmented control: one pill per option in its coordinated color, the selected
+ * one filled and outlined. Used to pick the deer weapon or the bear method on the plan
+ * page — switching it rebuilds the plan's "how".
  */
 @Composable
-private fun MethodSelector(selected: HuntMethod?, onPick: (HuntMethod) -> Unit) {
+private fun SegmentedPills(options: List<Pair<String, Color>>, selectedIndex: Int, onPick: (Int) -> Unit) {
     Row(Modifier.fillMaxWidth()) {
-        DEER_METHODS.forEachIndexed { i, m ->
-            val active = m == selected
-            val color = methodColor(m)
+        options.forEachIndexed { i, (label, color) ->
+            val active = i == selectedIndex
             if (i > 0) Spacer(Modifier.width(8.dp))
             Box(
                 Modifier
@@ -205,12 +225,12 @@ private fun MethodSelector(selected: HuntMethod?, onPick: (HuntMethod) -> Unit) 
                     .clip(RoundedCornerShape(999.dp))
                     .background(if (active) color.copy(alpha = 0.16f) else KairosColors.Surface)
                     .border(1.dp, if (active) color else KairosColors.Line, RoundedCornerShape(999.dp))
-                    .clickable { onPick(m) }
+                    .clickable { onPick(i) }
                     .padding(vertical = 9.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    m.label,
+                    label,
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
                     color = if (active) color else KairosColors.Dim,
