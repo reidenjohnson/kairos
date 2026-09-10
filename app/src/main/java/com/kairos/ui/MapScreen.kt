@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -38,6 +39,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,7 +59,9 @@ import com.kairos.data.Location
 import com.kairos.data.LocationProvider
 import com.kairos.data.MaineGisRepository
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kotlin.math.floor
 import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.geometry.LatLng
@@ -175,6 +179,33 @@ fun MapScreen() {
     var selected by remember { mutableStateOf<FeatureInfo?>(null) }
     val data = remember { mutableStateMapOf<String, String>() } // overlayId -> GeoJSON
     val loading = remember { mutableStateMapOf<String, Boolean>() }
+    var downloadPct by remember { mutableStateOf<Int?>(null) }
+    var toast by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(toast) { if (toast != null) { delay(3500); toast = null } }
+
+    // Save the current view for offline: base tiles for the visible area (+3 zoom levels,
+    // capped) and every overlay cached to disk. Street falls back to topo for the tiles.
+    val startDownload = start@{
+        val m = map ?: return@start
+        val bounds = m.projection.visibleRegion.latLngBounds
+        val z = m.cameraPosition.zoom
+        val dlBase = if (base == BaseMap.STREET) BaseMap.TOPO else base
+        enabled = OVERLAYS.map { it.id }.toSet() // load + cache every overlay for offline
+        downloadPct = 0
+        OfflineMaps.download(
+            context = context,
+            name = "Saved area",
+            base = dlBase,
+            styleUri = baseStyleUri(context, dlBase),
+            bounds = bounds,
+            minZoom = floor(z),
+            maxZoom = minOf(z + 3.0, 15.0),
+            onProgress = { downloadPct = it },
+            onComplete = { downloadPct = null; toast = "Saved for offline use" },
+            onError = { downloadPct = null; toast = it },
+        )
+    }
 
     Box(Modifier.fillMaxSize()) {
         MapLibreView(
@@ -190,7 +221,7 @@ fun MapScreen() {
         // Apply the base style; the overlay sync below re-adds sources onto the new style.
         LaunchedEffect(map, base) {
             val m = map ?: return@LaunchedEffect
-            m.setStyle(base.toStyle()) { s ->
+            m.setStyle(Style.Builder().fromUri(baseStyleUri(context, base))) { s ->
                 enableLocation(context, m, s)
                 style = s
             }
@@ -239,7 +270,22 @@ fun MapScreen() {
             }
         }
 
-        LayerButton(onClick = { showLayers = true }, modifier = Modifier.align(Alignment.TopEnd).padding(16.dp))
+        Column(Modifier.align(Alignment.TopEnd).padding(16.dp), horizontalAlignment = Alignment.End) {
+            MapIconButton(Icons.Outlined.Layers, "Map layers") { showLayers = true }
+            Spacer(Modifier.height(10.dp))
+            MapIconButton(Icons.Outlined.Download, "Save this area for offline", onClick = startDownload)
+        }
+
+        (downloadPct?.let { "Downloading map… $it%" } ?: toast)?.let { msg ->
+            Surface(
+                Modifier.align(Alignment.TopCenter).padding(top = 52.dp),
+                shape = RoundedCornerShape(999.dp),
+                color = KairosColors.Surface,
+                shadowElevation = 3.dp,
+            ) {
+                Text(msg, Modifier.padding(horizontal = 14.dp, vertical = 8.dp), style = MaterialTheme.typography.labelMedium, color = KairosColors.Dim)
+            }
+        }
 
         if (showLayers) {
             Box(Modifier.fillMaxSize().background(Color(0x66000000)).clickableNoRipple { showLayers = false })
@@ -382,10 +428,21 @@ private const val USGS_TOPO =
 private const val USGS_IMAGERY =
     "https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}"
 
-private fun BaseMap.toStyle(): Style.Builder = when (this) {
-    BaseMap.STREET -> Style.Builder().fromUri(STREET_STYLE_URI)
-    BaseMap.TOPO -> Style.Builder().fromJson(rasterStyleJson(USGS_TOPO, "USGS The National Map (topo)"))
-    BaseMap.SATELLITE -> Style.Builder().fromJson(rasterStyleJson(USGS_IMAGERY, "USGS The National Map (imagery)"))
+/**
+ * The style URI for a base map. The raster (USGS) styles are written to a local file so
+ * the SAME uri drives both on-screen display and MapLibre's offline downloader (which
+ * needs a resolvable style URL, not inline JSON). Street uses OpenFreeMap's hosted style.
+ */
+internal fun baseStyleUri(context: Context, base: BaseMap): String = when (base) {
+    BaseMap.STREET -> STREET_STYLE_URI
+    BaseMap.TOPO -> writeStyleFile(context, "style_topo.json", USGS_TOPO, "USGS The National Map (topo)")
+    BaseMap.SATELLITE -> writeStyleFile(context, "style_sat.json", USGS_IMAGERY, "USGS The National Map (imagery)")
+}
+
+private fun writeStyleFile(context: Context, name: String, tileUrl: String, attribution: String): String {
+    val f = java.io.File(context.filesDir, name)
+    f.writeText(rasterStyleJson(tileUrl, attribution)) // static content; cheap to rewrite
+    return "file://${f.absolutePath}"
 }
 
 /** A minimal MapLibre style with a single full-screen raster layer from an XYZ endpoint. */
@@ -410,16 +467,20 @@ private fun rasterStyleJson(tileUrl: String, attribution: String): String = """
 // ---- The layer control (OnX-style) ---------------------------------------------------
 
 @Composable
-private fun LayerButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun MapIconButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    desc: String,
+    onClick: () -> Unit,
+) {
     Surface(
-        modifier = modifier.size(48.dp),
+        modifier = Modifier.size(48.dp),
         shape = RoundedCornerShape(12.dp),
         color = KairosColors.Surface,
         shadowElevation = 4.dp,
         onClick = onClick,
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Icon(Icons.Outlined.Layers, contentDescription = "Map layers", tint = KairosColors.Pine)
+            Icon(icon, contentDescription = desc, tint = KairosColors.Pine)
         }
     }
 }

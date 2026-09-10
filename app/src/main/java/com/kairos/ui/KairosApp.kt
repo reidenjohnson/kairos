@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.outlined.EditCalendar
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.CloudDownload
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.Forest
 import androidx.compose.material.icons.outlined.Map
@@ -83,7 +84,7 @@ sealed interface UiState {
     data class Error(val message: String) : UiState
 }
 
-private enum class Dest { TODAY, SPECIES, MAP, WEATHER, SEASONS, DEADLINES, WEEKLY, SETTINGS, DETAIL, PLAN }
+private enum class Dest { TODAY, SPECIES, MAP, OFFLINE, WEATHER, SEASONS, DEADLINES, WEEKLY, SETTINGS, DETAIL, PLAN }
 
 /**
  * One place in the app. [seasonFocus] applies to SEASONS; [detailSpecies] to DETAIL;
@@ -230,6 +231,7 @@ fun KairosApp(onToggleTheme: (Boolean) -> Unit = {}) {
                 Dest.TODAY -> "Today"
                 Dest.SPECIES -> if (current.listSide == Side.FISH) "Fish" else "Hunt"
                 Dest.MAP -> "Map"
+                Dest.OFFLINE -> "Offline maps"
                 Dest.WEATHER -> "Weather"
                 Dest.SEASONS -> "Seasons"
                 Dest.DEADLINES -> "Licenses & lotteries"
@@ -278,6 +280,7 @@ fun KairosApp(onToggleTheme: (Boolean) -> Unit = {}) {
                         )
                         Dest.WEATHER -> WeatherScreen(state = state)
                         Dest.MAP -> MapScreen()
+                        Dest.OFFLINE -> OfflineMapsScreen()
                         Dest.SPECIES -> SideSpeciesScreen(
                             state = state,
                             side = current.listSide ?: Side.HUNT,
@@ -358,6 +361,9 @@ private fun DrawerContent(
         }
         DrawerItem("Map", Icons.Outlined.Map, current == Dest.MAP) {
             onSelect(Dest.MAP)
+        }
+        DrawerItem("Offline maps", Icons.Outlined.CloudDownload, current == Dest.OFFLINE) {
+            onSelect(Dest.OFFLINE)
         }
         DrawerItem("Seasons", Icons.Filled.CalendarMonth, current == Dest.SEASONS) {
             onSelect(Dest.SEASONS)
