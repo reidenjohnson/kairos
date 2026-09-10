@@ -25,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Layers
+import androidx.compose.material.icons.outlined.MyLocation
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -47,6 +48,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -54,13 +56,19 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.kairos.advice.buildSidePlan
 import com.kairos.data.GeoCache
 import com.kairos.data.Location
 import com.kairos.data.LocationProvider
 import com.kairos.data.MaineGisRepository
+import com.kairos.data.Place
+import com.kairos.data.WeatherRepository
+import com.kairos.engine.Side
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.LocalDate
 import kotlin.math.floor
 import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraPosition
@@ -108,6 +116,9 @@ internal data class MapOverlay(
     val generalizeDeg: Double?,
     /** Heavy statewide layers only draw once zoomed in past this, to keep panning smooth. */
     val minZoom: Double? = null,
+    /** Property that groups a feature with the rest of its unit — tapping one highlights
+     *  the whole thing (OnX-style). e.g. PROJECT ties a park's scattered parcels together. */
+    val groupField: String? = null,
     val attribution: String,
     val disclaimer: String,
     val legalLink: String? = null,
@@ -127,6 +138,7 @@ internal val OVERLAYS: List<MapOverlay> = listOf(
         filled = true,
         generalizeDeg = null, // full resolution — exact state boundaries, no simplification
         minZoom = 9.0, // only DRAW once zoomed in (fidelity unchanged) so a statewide pan stays smooth
+        groupField = "PROJECT", // tap one parcel → highlight the whole conservation project
         attribution = "Maine Office of GIS — Conserved Lands",
         disclaimer = "Approximate ownership boundaries (1:24,000), not legal survey lines. Public access is not implied — respect posted and private inholdings.",
     ),
@@ -137,6 +149,7 @@ internal val OVERLAYS: List<MapOverlay> = listOf(
         color = Color(0xFFEF6C00),
         filled = true,
         generalizeDeg = null,
+        groupField = "NAME",
         attribution = "Maine DIFW — Expanded Archery Areas",
         disclaimer = "Mapped at 1:3,000 and approximate. Where the map and the written boundary description differ, the WRITTEN description is the legal authority.",
         legalLink = "https://www.maine.gov/ifw/hunting-trapping/hunting/species/deer/expanded-archery/index.html",
@@ -148,6 +161,7 @@ internal val OVERLAYS: List<MapOverlay> = listOf(
         color = Color(0xFF00838F),
         filled = true,
         generalizeDeg = null,
+        groupField = "PROJECT", // tap a parcel → highlight the whole WMA
         attribution = "Maine DIFW — Wildlife Management Areas",
         disclaimer = "Approximate property boundaries (1:24,000), not legal survey lines.",
     ),
@@ -180,8 +194,36 @@ internal fun preloadOverlays(context: Context) {
     }
 }
 
-/** What a tapped feature shows in the info sheet. */
-private data class FeatureInfo(val overlay: MapOverlay, val name: String?, val details: String?)
+/** A cleaned-up description of a tapped feature for the info sheet. A null [overlay]
+ *  means a bare spot (long-press on open ground) — just the forecast, no property. */
+private data class FeatureInfo(
+    val overlay: MapOverlay?,
+    val title: String,
+    val facts: List<Pair<String, String>>,      // compact, always shown
+    val moreFacts: List<Pair<String, String>>,  // behind "read more"
+    val description: String?,                    // long legal text (read more)
+    val links: List<Pair<String, String>>,       // label -> url
+    val lat: Double,
+    val lon: Double,
+)
+
+/** The tapped feature's unit, to highlight all of it (OnX-style). */
+private data class Highlight(val overlay: MapOverlay, val field: String, val value: String)
+
+/** The per-spot engine forecast shown in the sheet. */
+private sealed interface SpotForecast {
+    data object Loading : SpotForecast
+    data object Failed : SpotForecast
+    data class Ready(
+        val huntScore: Int,
+        val fishScore: Int,
+        val huntWindow: String?,
+        val fishWindow: String?,
+        val planHeadline: String,
+        val planTactic: String,
+        val weatherLine: String,
+    ) : SpotForecast
+}
 
 /** Center of the state as a sensible default until we have the device's location. */
 private val MAINE_CENTER = LatLng(Location.LAT, Location.LON)
@@ -197,10 +239,13 @@ fun MapScreen() {
     var map by remember { mutableStateOf<MapLibreMap?>(null) }
     var style by remember { mutableStateOf<Style?>(null) }
     var selected by remember { mutableStateOf<FeatureInfo?>(null) }
+    var highlight by remember { mutableStateOf<Highlight?>(null) }
+    var spotFx by remember { mutableStateOf<SpotForecast?>(null) }
     val data = remember { mutableStateMapOf<String, String>() } // overlayId -> GeoJSON
     val loading = remember { mutableStateMapOf<String, Boolean>() }
     var downloadPct by remember { mutableStateOf<Int?>(null) }
     var toast by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(toast) { if (toast != null) { delay(3500); toast = null } }
 
@@ -231,9 +276,21 @@ fun MapScreen() {
         MapLibreView(
             onMapReady = { m ->
                 map = m
+                // Tap a property → identify it, highlight its whole unit, forecast the spot.
                 m.addOnMapClickListener { latLng ->
-                    selected = queryFeature(m, latLng, enabled)
-                    selected != null
+                    val hit = featureAt(m, latLng, enabled)
+                    if (hit != null) {
+                        val (ov, feat) = hit
+                        selected = describeFeature(ov, feat, latLng.latitude, latLng.longitude)
+                        highlight = ov.groupField?.let { gf -> feat.str(gf)?.let { Highlight(ov, gf, it) } }
+                    }
+                    hit != null
+                }
+                // Long-press anywhere → a quick weather + hunt/fish read for that spot.
+                m.addOnMapLongClickListener { latLng ->
+                    selected = FeatureInfo(null, "Selected spot", emptyList(), emptyList(), null, emptyList(), latLng.latitude, latLng.longitude)
+                    highlight = null
+                    true
                 }
             },
         )
@@ -275,6 +332,19 @@ fun MapScreen() {
             style?.let { syncOverlays(it, enabled, data) }
         }
 
+        // Highlight the tapped unit (OnX-style) on the current style.
+        LaunchedEffect(style, highlight) {
+            style?.let { applyHighlight(it, highlight) }
+        }
+
+        // Run the engine for the tapped/long-pressed spot: weather + hunt/fish + a plan.
+        LaunchedEffect(selected?.lat, selected?.lon) {
+            val sel = selected
+            if (sel == null) { spotFx = null; return@LaunchedEffect }
+            spotFx = SpotForecast.Loading
+            spotFx = loadSpotForecast(sel.lat, sel.lon, sel.title)
+        }
+
         if (loading.values.any { it }) {
             Surface(
                 Modifier.align(Alignment.TopCenter).padding(top = 12.dp),
@@ -294,6 +364,21 @@ fun MapScreen() {
             MapIconButton(Icons.Outlined.Layers, "Map layers") { showLayers = true }
             Spacer(Modifier.height(10.dp))
             MapIconButton(Icons.Outlined.Download, "Save this area for offline", onClick = startDownload)
+        }
+
+        // Recenter on the device's GPS location, like Google Maps.
+        MapIconButton(
+            icon = Icons.Outlined.MyLocation,
+            desc = "Center on my location",
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 24.dp),
+        ) {
+            val m = map ?: return@MapIconButton
+            scope.launch {
+                val place = withContext(Dispatchers.IO) { LocationProvider.current(context) } ?: return@launch
+                m.animateCamera(
+                    org.maplibre.android.camera.CameraUpdateFactory.newLatLngZoom(LatLng(place.lat, place.lon), 13.0),
+                )
+            }
         }
 
         (downloadPct?.let { "Downloading map… $it%" } ?: toast)?.let { msg ->
@@ -320,8 +405,13 @@ fun MapScreen() {
         }
 
         selected?.let { info ->
-            Box(Modifier.fillMaxSize().clickableNoRipple { selected = null })
-            FeatureSheet(info = info, onDismiss = { selected = null }, modifier = Modifier.align(Alignment.BottomCenter))
+            Box(Modifier.fillMaxSize().clickableNoRipple { selected = null; highlight = null })
+            FeatureSheet(
+                info = info,
+                forecast = spotFx,
+                onDismiss = { selected = null; highlight = null },
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
         }
     }
 }
@@ -413,35 +503,172 @@ private fun syncOverlays(style: Style, enabled: Set<String>, data: Map<String, S
     }
 }
 
-private val NAME_KEYS = listOf("name", "owner", "unit", "wmd", "district", "area", "label")
-private val DETAIL_KEYS = listOf("description", "descriptio", "legal", "towns", "town", "acres", "type")
-
-/** First property whose key matches any of [keys] and has a non-blank value. Reads the
- *  JSON element directly and skips JSON-null / non-string values — MapLibre's
- *  getStringProperty() throws on a JsonNull, which was crashing the tap handler. */
-private fun org.maplibre.geojson.Feature.pick(keys: List<String>): String? {
-    val props = properties() ?: return null
-    for (key in props.keySet()) {
-        if (keys.none { key.contains(it, ignoreCase = true) }) continue
-        val el = props.get(key) ?: continue
-        if (el.isJsonNull || !el.isJsonPrimitive) continue
-        val value = el.asString
-        if (value.isNotBlank()) return value
-    }
-    return null
+/** Highlight the whole tapped unit (all features sharing its group value) with a bold
+ *  outline over its own source, OnX-style. Removes any prior highlight first. */
+private fun applyHighlight(style: Style, highlight: Highlight?) {
+    style.getLayer("hl-line")?.let { style.removeLayer(it) }
+    style.getLayer("hl-fill")?.let { style.removeLayer(it) }
+    if (highlight == null) return
+    val srcId = "ov-${highlight.overlay.id}"
+    if (style.getSource(srcId) == null) return
+    val filter = org.maplibre.android.style.expressions.Expression.eq(
+        org.maplibre.android.style.expressions.Expression.get(highlight.field),
+        org.maplibre.android.style.expressions.Expression.literal(highlight.value),
+    )
+    val fill = FillLayer("hl-fill", srcId).withProperties(
+        PropertyFactory.fillColor(highlight.overlay.color.toArgb()),
+        PropertyFactory.fillOpacity(0.35f),
+    ).withFilter(filter)
+    val line = LineLayer("hl-line", srcId).withProperties(
+        PropertyFactory.lineColor(android.graphics.Color.WHITE),
+        PropertyFactory.lineWidth(3.0f),
+    ).withFilter(filter)
+    style.addLayer(fill)
+    style.addLayer(line)
 }
 
-/** Which overlay (if any) sits under the tap, plus a best-effort feature name + details. */
-private fun queryFeature(map: MapLibreMap, latLng: LatLng, enabled: Set<String>): FeatureInfo? {
+/** Run the engine at a tapped spot: fetch its weather, score hunt + fish, build a plan. */
+private suspend fun loadSpotForecast(lat: Double, lon: Double, label: String): SpotForecast {
+    val fx = runCatching {
+        withContext(Dispatchers.IO) { WeatherRepository.fetch(Place(lat, lon, label)) }
+    }.getOrNull() ?: return SpotForecast.Failed
+    val timing = fx.timing
+    val hunt = timing?.scoreForSide(Side.HUNT) ?: 0
+    val fish = timing?.scoreForSide(Side.FISH) ?: 0
+    val bestSide = if (fish >= hunt) Side.FISH else Side.HUNT
+    val plan = buildSidePlan(bestSide, fx.conditions, LocalDate.now(), timing, fx.precipMmHr)
+    val c = fx.conditions
+    val trend = when {
+        c.pressureTrendInHg < -0.03 -> "falling"
+        c.pressureTrendInHg > 0.03 -> "rising"
+        else -> "steady"
+    }
+    val weather = "${c.airF.toInt()}° · wind ${c.windMph.toInt()} mph · $trend"
+    return SpotForecast.Ready(
+        huntScore = hunt,
+        fishScore = fish,
+        huntWindow = spotWindow(timing, Side.HUNT),
+        fishWindow = spotWindow(timing, Side.FISH),
+        planHeadline = plan.headline,
+        planTactic = plan.tacticLine,
+        weatherLine = weather,
+    )
+}
+
+private fun spotWindow(timing: com.kairos.data.DayTiming?, side: Side): String? {
+    val w = timing?.bestWindows(side)?.firstOrNull() ?: return null
+    return "${spotHour(w.first)}–${spotHour(w.last + 1)}"
+}
+
+private fun spotHour(h: Int): String = when {
+    h == 0 || h == 24 -> "12 AM"
+    h == 12 -> "12 PM"
+    h < 12 -> "$h AM"
+    else -> "${h - 12} PM"
+}
+
+/** A property's value as a clean string, or null. Skips JSON-null / "unknown" / blanks —
+ *  and never throws (MapLibre's getStringProperty throws on a JsonNull). */
+private fun org.maplibre.geojson.Feature.str(key: String): String? {
+    val el = properties()?.get(key) ?: return null
+    if (el.isJsonNull || !el.isJsonPrimitive) return null
+    val v = el.asString.trim()
+    return v.takeIf { it.isNotBlank() && !it.equals("unknown", true) && it != "0" }
+}
+
+/** Like [str], but also rejects a value that's just a number (e.g. a tax-map parcel id),
+ *  so a feature's title falls back to a real name. */
+private fun org.maplibre.geojson.Feature.name(key: String): String? =
+    str(key)?.takeUnless { v -> v.all { it.isDigit() || it == '-' || it == ' ' } }
+
+/** Acreage from the reported or calculated field, formatted. */
+private fun org.maplibre.geojson.Feature.acres(): String? {
+    val a = str("RPT_AC")?.toDoubleOrNull() ?: str("CALC_AC")?.toDoubleOrNull() ?: return null
+    if (a < 0.5) return null
+    return "%,d acres".format(a.toInt())
+}
+
+private fun titleCase(s: String): String =
+    s.lowercase().split(" ").joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
+
+/** Which overlay feature sits under the tap (topmost enabled overlay), if any. */
+private fun featureAt(map: MapLibreMap, latLng: LatLng, enabled: Set<String>): Pair<MapOverlay, org.maplibre.geojson.Feature>? {
     val point: PointF = map.projection.toScreenLocation(latLng)
     for (ov in OVERLAYS) {
         if (ov.id !in enabled) continue
         val layerId = "ov-${ov.id}-" + if (ov.filled) "fill" else "line"
-        val feats = runCatching { map.queryRenderedFeatures(point, layerId) }.getOrNull().orEmpty()
-        val f = feats.firstOrNull() ?: continue
-        return FeatureInfo(ov, name = f.pick(NAME_KEYS), details = f.pick(DETAIL_KEYS))
+        val f = runCatching { map.queryRenderedFeatures(point, layerId) }.getOrNull().orEmpty().firstOrNull()
+        if (f != null) return ov to f
     }
     return null
+}
+
+/** Build the clean, labeled description for a tapped feature — per overlay, using the
+ *  real fields, with the bulky text tucked into "read more". */
+private fun describeFeature(ov: MapOverlay, f: org.maplibre.geojson.Feature, lat: Double, lon: Double): FeatureInfo = when (ov.id) {
+    "public-land" -> FeatureInfo(
+        overlay = ov,
+        title = f.name("PARCEL_NAME") ?: f.name("PROJECT") ?: f.str("HOLD1_NAME") ?: "Conserved land",
+        facts = listOfNotNull(
+            f.str("HOLD1_NAME")?.let { "Owner" to it },
+            f.str("PUB_ACCESS")?.let { "Access" to it },
+            f.str("CONS1_TYPE")?.let { "Interest" to it },
+            f.acres()?.let { "Size" to it },
+        ),
+        moreFacts = listOfNotNull(
+            f.str("PROJECT")?.let { "Project" to it },
+            f.str("DESIGNATION")?.let { "Designation" to it },
+            f.str("HOLD1_TYPE")?.let { "Owner type" to it },
+            f.str("GAP_STATUS")?.let { "Protection" to it },
+            f.str("PURPOSE1")?.let { "Purpose" to it },
+            f.str("ACQ_YEAR")?.let { "Acquired" to it },
+        ),
+        description = null,
+        links = emptyList(),
+        lat = lat, lon = lon,
+    )
+    "wma" -> FeatureInfo(
+        overlay = ov,
+        title = f.name("PROJECT") ?: f.name("PARCEL_NAME") ?: "Wildlife Management Area",
+        facts = listOfNotNull(
+            f.str("HOLD1_NAME")?.let { "Managed by" to it },
+            f.str("PUB_ACCESS")?.let { "Access" to it },
+            f.acres()?.let { "Size" to it },
+        ),
+        moreFacts = listOfNotNull(
+            f.str("PARCEL_NAME")?.let { "Parcel" to it },
+            f.str("DESIGNATION")?.let { "Designation" to it },
+            f.str("PURPOSE1")?.let { "Purpose" to it },
+            f.str("ACQ_YEAR")?.let { "Acquired" to it },
+        ),
+        description = null,
+        links = emptyList(),
+        lat = lat, lon = lon,
+    )
+    "expanded-archery" -> FeatureInfo(
+        overlay = ov,
+        title = f.str("NAME")?.let { titleCase(it) } ?: "Expanded archery zone",
+        facts = listOfNotNull(f.str("TownsIncluded")?.let { "Towns" to it }),
+        moreFacts = emptyList(),
+        description = f.str("Description"), // the long legal boundary — read more
+        links = listOfNotNull(ov.legalLink?.let { "Official expanded-archery info (Maine IF&W)" to it }),
+        lat = lat, lon = lon,
+    )
+    "wmd" -> FeatureInfo(
+        overlay = ov,
+        title = "Wildlife Management District ${f.str("IDENTIFIER") ?: "?"}",
+        facts = emptyList(),
+        moreFacts = listOfNotNull(
+            f.str("AREASQMI")?.toDoubleOrNull()?.let { "Area" to "%,d sq mi".format(it.toInt()) },
+        ),
+        description = null,
+        links = listOfNotNull(
+            f.str("MapPDF")?.let { "District map (PDF)" to it },
+            f.str("DescriptionPDF")?.let { "Written boundary description (PDF)" to it },
+        ),
+        lat = lat, lon = lon,
+    )
+    else -> FeatureInfo(ov, ov.label, emptyList(), emptyList(), null, emptyList(), lat, lon)
 }
 
 // ---- Base map style JSON -------------------------------------------------------------
@@ -497,10 +724,11 @@ private fun rasterStyleJson(tileUrl: String, attribution: String): String = """
 private fun MapIconButton(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     desc: String,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
     Surface(
-        modifier = Modifier.size(48.dp),
+        modifier = modifier.size(48.dp),
         shape = RoundedCornerShape(12.dp),
         color = KairosColors.Surface,
         shadowElevation = 4.dp,
@@ -564,39 +792,137 @@ private fun LayerSheet(
 }
 
 @Composable
-private fun FeatureSheet(info: FeatureInfo, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
+private fun FeatureSheet(info: FeatureInfo, forecast: SpotForecast?, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
+    val uriHandler = LocalUriHandler.current
+    var expanded by remember(info) { mutableStateOf(false) }
     Surface(
         modifier = modifier.fillMaxWidth(),
         color = KairosColors.Surface,
         shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
         shadowElevation = 12.dp,
     ) {
-        Column(Modifier.fillMaxWidth().padding(20.dp)) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 14.dp, bottom = 20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(12.dp).background(info.overlay.color, RoundedCornerShape(3.dp)))
-                Spacer(Modifier.width(10.dp))
-                Text(info.overlay.label, style = MaterialTheme.typography.labelMedium, color = KairosColors.Dim, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                info.overlay?.let {
+                    Box(Modifier.size(12.dp).background(it.color, RoundedCornerShape(3.dp)))
+                    Spacer(Modifier.width(10.dp))
+                }
+                Text(
+                    info.overlay?.label ?: "Spot forecast",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = KairosColors.Dim,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f),
+                )
                 IconButton(onClick = onDismiss) {
                     Icon(Icons.Filled.Close, contentDescription = "Close", tint = KairosColors.Dim)
                 }
             }
-            Spacer(Modifier.height(4.dp))
-            Text(
-                info.name ?: info.overlay.label,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = KairosColors.Text,
-            )
-            // Long legal text (e.g. the expanded-archery written boundary) scrolls.
-            Column(Modifier.heightIn(max = 260.dp).verticalScroll(rememberScrollState())) {
-                info.details?.let {
+            Text(info.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = KairosColors.Text)
+
+            Column(Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState())) {
+                if (info.facts.isNotEmpty()) {
                     Spacer(Modifier.height(8.dp))
-                    Text(it, style = MaterialTheme.typography.bodySmall, color = KairosColors.Text, lineHeight = 18.sp)
+                    info.facts.forEach { (k, v) -> FactRow(k, v) }
                 }
-                Spacer(Modifier.height(10.dp))
-                Text(info.overlay.disclaimer, style = MaterialTheme.typography.bodySmall, color = KairosColors.Dim, lineHeight = 18.sp)
-                Spacer(Modifier.height(8.dp))
-                Text(info.overlay.attribution, style = MaterialTheme.typography.labelSmall, color = KairosColors.Faint)
+
+                // The engine forecast for this exact spot.
+                Spacer(Modifier.height(14.dp))
+                ForecastBlock(forecast)
+
+                // Read more: the detail fields, the long legal text, and official links.
+                val hasMore = info.moreFacts.isNotEmpty() || info.description != null || info.links.isNotEmpty()
+                if (hasMore) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        if (expanded) "Show less" else "Read more",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = KairosColors.Water,
+                        modifier = Modifier.clickableNoRipple { expanded = !expanded }.padding(vertical = 6.dp),
+                    )
+                    if (expanded) {
+                        info.moreFacts.forEach { (k, v) -> FactRow(k, v) }
+                        info.description?.let {
+                            Spacer(Modifier.height(8.dp))
+                            Text(it, style = MaterialTheme.typography.bodySmall, color = KairosColors.Text, lineHeight = 18.sp)
+                        }
+                        info.links.forEach { (label, url) ->
+                            Spacer(Modifier.height(10.dp))
+                            Text(
+                                label,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = KairosColors.Water,
+                                modifier = Modifier.clickableNoRipple { uriHandler.openUri(url) },
+                            )
+                        }
+                    }
+                }
+
+                info.overlay?.let {
+                    Spacer(Modifier.height(12.dp))
+                    Text(it.disclaimer, style = MaterialTheme.typography.labelSmall, color = KairosColors.Faint, lineHeight = 15.sp)
+                    Spacer(Modifier.height(6.dp))
+                    Text(it.attribution, style = MaterialTheme.typography.labelSmall, color = KairosColors.Faint)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FactRow(label: String, value: String) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+        Text(label, style = MaterialTheme.typography.bodyMedium, color = KairosColors.Faint, modifier = Modifier.width(96.dp))
+        Text(value, style = MaterialTheme.typography.bodyMedium, color = KairosColors.Text, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+    }
+}
+
+/** Hunt + fish scores, best windows, weather, and a game plan for the tapped spot. */
+@Composable
+private fun ForecastBlock(forecast: SpotForecast?) {
+    Surface(shape = RoundedCornerShape(14.dp), color = KairosColors.Bg, modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth().padding(14.dp)) {
+            when (forecast) {
+                null, SpotForecast.Loading -> Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = KairosColors.Pine)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Reading conditions for this spot…", style = MaterialTheme.typography.bodySmall, color = KairosColors.Dim)
+                }
+                SpotForecast.Failed -> Text(
+                    "Couldn't load the forecast for here — check your connection.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = KairosColors.Dim,
+                )
+                is SpotForecast.Ready -> {
+                    Row(Modifier.fillMaxWidth()) {
+                        ScorePill("Hunt", forecast.huntScore, forecast.huntWindow, Modifier.weight(1f))
+                        Spacer(Modifier.width(10.dp))
+                        ScorePill("Fish", forecast.fishScore, forecast.fishWindow, Modifier.weight(1f))
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text(forecast.weatherLine, style = MaterialTheme.typography.labelMedium, color = KairosColors.Dim)
+                    Spacer(Modifier.height(10.dp))
+                    Text(forecast.planHeadline, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = KairosColors.Text, lineHeight = 19.sp)
+                    Spacer(Modifier.height(4.dp))
+                    Text(forecast.planTactic, style = MaterialTheme.typography.bodySmall, color = KairosColors.Dim, lineHeight = 18.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ScorePill(label: String, score: Int, window: String?, modifier: Modifier = Modifier) {
+    val color = ratingColor(com.kairos.engine.rating(score))
+    Column(modifier) {
+        Text(label.uppercase(), style = MaterialTheme.typography.labelSmall, color = KairosColors.Faint, fontWeight = FontWeight.Bold)
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text("$score", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold, color = color)
+            window?.let {
+                Spacer(Modifier.width(6.dp))
+                Text(it, style = MaterialTheme.typography.labelSmall, color = KairosColors.Dim, modifier = Modifier.padding(bottom = 4.dp))
             }
         }
     }
