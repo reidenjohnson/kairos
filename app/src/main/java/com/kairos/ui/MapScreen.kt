@@ -106,6 +106,8 @@ internal data class MapOverlay(
     val filled: Boolean,
     /** Server-side geometry generalization in degrees for big statewide layers; null = full res. */
     val generalizeDeg: Double?,
+    /** Heavy statewide layers only draw once zoomed in past this, to keep panning smooth. */
+    val minZoom: Double? = null,
     val attribution: String,
     val disclaimer: String,
     val legalLink: String? = null,
@@ -123,7 +125,8 @@ internal val OVERLAYS: List<MapOverlay> = listOf(
         layerUrl = "$GIS_HOST/Maine_Conserved_Lands_All/FeatureServer/0",
         color = Color(0xFF2E7D32),
         filled = true,
-        generalizeDeg = 0.0001, // statewide + many polygons — lightly generalized (~11 m)
+        generalizeDeg = null, // full resolution — exact state boundaries, no simplification
+        minZoom = 9.0, // only DRAW once zoomed in (fidelity unchanged) so a statewide pan stays smooth
         attribution = "Maine Office of GIS — Conserved Lands",
         disclaimer = "Approximate ownership boundaries (1:24,000), not legal survey lines. Public access is not implied — respect posted and private inholdings.",
     ),
@@ -154,11 +157,28 @@ internal val OVERLAYS: List<MapOverlay> = listOf(
         layerUrl = "$GIS_HOST/WMD/FeatureServer/0",
         color = Color(0xFF5E35B1),
         filled = false,
-        generalizeDeg = 0.0002,
+        generalizeDeg = null, // full resolution
+        minZoom = 7.0,
         attribution = "Maine DIFW — Wildlife Management Districts",
         disclaimer = "The 29 statewide management districts that season dates and permits key off of.",
     ),
 )
+
+/**
+ * Fetch every overlay to the on-disk cache if it isn't there yet — called in the
+ * background on app launch so the map is ready (and offline-capable) the first time it's
+ * opened, instead of making the user wait. Best-effort: a failure just means it loads on
+ * demand later. BLOCKING — call on [Dispatchers.IO].
+ */
+internal fun preloadOverlays(context: Context) {
+    for (ov in OVERLAYS) {
+        if (GeoCache.load(context, ov.id) != null) continue
+        runCatching {
+            MaineGisRepository.fetchGeoJson(ov.layerUrl, ov.generalizeDeg)
+                .also { GeoCache.save(context, ov.id, it) }
+        }
+    }
+}
 
 /** What a tapped feature shows in the info sheet. */
 private data class FeatureInfo(val overlay: MapOverlay, val name: String?, val details: String?)
@@ -370,19 +390,19 @@ private fun syncOverlays(style: Style, enabled: Set<String>, data: Map<String, S
         if (want && !hasSrc) {
             style.addSource(GeoJsonSource(srcId, geo))
             if (ov.filled) {
-                style.addLayer(
-                    FillLayer(fillId, srcId).withProperties(
-                        PropertyFactory.fillColor(ov.color.toArgb()),
-                        PropertyFactory.fillOpacity(0.28f),
-                    ),
+                val fill = FillLayer(fillId, srcId).withProperties(
+                    PropertyFactory.fillColor(ov.color.toArgb()),
+                    PropertyFactory.fillOpacity(0.28f),
                 )
+                ov.minZoom?.let { fill.setMinZoom(it.toFloat()) }
+                style.addLayer(fill)
             }
-            style.addLayer(
-                LineLayer(lineId, srcId).withProperties(
-                    PropertyFactory.lineColor(ov.color.toArgb()),
-                    PropertyFactory.lineWidth(if (ov.filled) 1.6f else 2.4f),
-                ),
+            val line = LineLayer(lineId, srcId).withProperties(
+                PropertyFactory.lineColor(ov.color.toArgb()),
+                PropertyFactory.lineWidth(if (ov.filled) 1.6f else 2.4f),
             )
+            ov.minZoom?.let { line.setMinZoom(it.toFloat()) }
+            style.addLayer(line)
         } else if (want && hasSrc) {
             (style.getSourceAs<GeoJsonSource>(srcId))?.setGeoJson(geo)
         } else if (!want && hasSrc) {

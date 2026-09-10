@@ -172,6 +172,12 @@ fun KairosApp(onToggleTheme: (Boolean) -> Unit = {}) {
             }
         }
 
+        // Pre-fetch the official Maine map overlays to disk in the background on launch, so
+        // the Map opens instantly (and works offline) instead of downloading on first view.
+        LaunchedEffect(Unit) {
+            withContext(Dispatchers.IO) { preloadOverlays(context) }
+        }
+
         LaunchedEffect(reloadKey) {
             if (state is UiState.Ready) refreshing = true else state = UiState.Loading
             val place = LocationProvider.current(context) ?: Location.SEBAGO
@@ -210,6 +216,8 @@ fun KairosApp(onToggleTheme: (Boolean) -> Unit = {}) {
 
         ModalNavigationDrawer(
             drawerState = drawerState,
+            // On the map, the left-edge swipe pans the map — don't let it open the drawer.
+            gesturesEnabled = dest != Dest.MAP,
             drawerContent = {
                 DrawerContent(
                     placeLabel = placeLabel,
