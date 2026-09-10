@@ -372,3 +372,29 @@ ET); drawing Saturday, June 20, 2026 (Acton Fairgrounds).
 **Antlerless deer permit lottery (2026):** applications open June 25; application deadline Monday,
 August 3, 2026 (11:59 pm); drawing August 13, 2026; permit payment deadline September 10, 2026.
 - Maine IF&W, "Antlerless Deer Permit" — https://www.maine.gov/ifw/hunting-trapping/hunting/species/deer/antlerless-deer-permit.html
+
+## Map overlays (the interactive Maine map)
+
+The map shows official State of Maine GIS boundaries exactly as the state publishes them — Kairos does
+not draw, estimate, or interpolate any boundary. All layers come from Maine's own ArcGIS org
+(`services1.arcgis.com/RbMX0mRVOFNTdLzd`) as GeoJSON, and are cached on-device for offline use. Base map
+tiles are free/keyless: USGS The National Map (public-domain topo + imagery) and OpenFreeMap (street).
+
+**Honesty (Tier 3 — approximation, flagged in-app):** the state labels these boundaries **approximate**,
+mapped at 1:24,000 (conserved lands / WMAs) or 1:3,000 (expanded archery), and **not legal survey lines**.
+For expanded archery, where the map and the **written boundary description** differ, the written
+description is the legal authority — so the app shows that description and disclaimer on tap. Public-land
+ownership does not imply a right of access; respect posted land and private inholdings.
+
+- Public / conserved land — Maine Office of GIS, "Maine Conserved Lands" —
+  https://services1.arcgis.com/RbMX0mRVOFNTdLzd/arcgis/rest/services/Maine_Conserved_Lands_All/FeatureServer
+- Expanded archery zones — Maine DIFW, "Expanded Archery Areas" (1:3,000; written description governs) —
+  https://services1.arcgis.com/RbMX0mRVOFNTdLzd/arcgis/rest/services/MaineDIFW_ExpandedArcheryAreas/FeatureServer
+  — legal descriptions: https://www.maine.gov/ifw/hunting-trapping/hunting/species/deer/expanded-archery/index.html
+- Wildlife Management Areas — Maine DIFW, "Wildlife Management Areas" —
+  https://services1.arcgis.com/RbMX0mRVOFNTdLzd/arcgis/rest/services/MaineDIFW_WildlifeManagementAreas/FeatureServer
+- Wildlife Management Districts (1–29) — Maine DIFW, "Wildlife Management Districts" —
+  https://services1.arcgis.com/RbMX0mRVOFNTdLzd/arcgis/rest/services/WMD/FeatureServer
+- Base tiles — USGS The National Map (USGSTopo, USGSImageryOnly), public domain —
+  https://basemap.nationalmap.gov/ ; OpenFreeMap street style — https://openfreemap.org/
+- Rendering — MapLibre Native Android (open-source, no API key) — https://maplibre.org/
