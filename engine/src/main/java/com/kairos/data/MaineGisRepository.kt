@@ -35,12 +35,12 @@ object MaineGisRepository {
      *
      * BLOCKING — call on [kotlinx.coroutines.Dispatchers.IO].
      */
-    fun fetchGeoJson(layerUrl: String, generalizeDeg: Double? = null): String {
+    fun fetchGeoJson(layerUrl: String, generalizeDeg: Double? = null, where: String = "1=1"): String {
         val features = JSONArray()
         var offset = 0
         var pages = 0
         while (pages < MAX_PAGES) {
-            val body = httpGet(queryUrl(layerUrl, offset, PAGE, generalizeDeg))
+            val body = httpGet(queryUrl(layerUrl, offset, PAGE, generalizeDeg, where))
             val json = JSONObject(body)
             // ArcGIS reports query errors as a 200 with an "error" object — surface it.
             json.optJSONObject("error")?.let { err ->
@@ -60,9 +60,11 @@ object MaineGisRepository {
             .toString()
     }
 
-    private fun queryUrl(layerUrl: String, offset: Int, count: Int, generalizeDeg: Double?): String {
+    private fun queryUrl(layerUrl: String, offset: Int, count: Int, generalizeDeg: Double?, where: String): String {
         val sb = StringBuilder(layerUrl.trimEnd('/'))
-        sb.append("/query?where=1%3D1&outFields=*&returnGeometry=true&outSR=4326&f=geojson")
+        val encodedWhere = java.net.URLEncoder.encode(where, "UTF-8")
+        sb.append("/query?where=").append(encodedWhere)
+        sb.append("&outFields=*&returnGeometry=true&outSR=4326&f=geojson")
         sb.append("&resultOffset=").append(offset)
         sb.append("&resultRecordCount=").append(count)
         sb.append("&geometryPrecision=5")

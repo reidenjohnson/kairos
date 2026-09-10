@@ -27,10 +27,13 @@ import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.MyLocation
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -114,6 +117,8 @@ internal data class MapOverlay(
     val filled: Boolean,
     /** Server-side geometry generalization in degrees for big statewide layers; null = full res. */
     val generalizeDeg: Double?,
+    /** ArcGIS attribute filter — narrows a national dataset to Maine's slice. */
+    val where: String = "1=1",
     /** Heavy statewide layers only draw once zoomed in past this, to keep panning smooth. */
     val minZoom: Double? = null,
     /** Property that groups a feature with the rest of its unit — tapping one highlights
@@ -166,6 +171,20 @@ internal val OVERLAYS: List<MapOverlay> = listOf(
         disclaimer = "Approximate property boundaries (1:24,000), not legal survey lines.",
     ),
     MapOverlay(
+        id = "national-forest",
+        label = "National Forest",
+        layerUrl = "https://apps.fs.usda.gov/arcx/rest/services/EDW/EDW_ForestSystemBoundaries_01/MapServer/0",
+        color = Color(0xFF33691E), // deep olive, distinct from the brighter conserved-land green
+        filled = true,
+        generalizeDeg = null,
+        where = "FORESTNAME='White Mountain National Forest'", // the only NF touching Maine
+        minZoom = 6.0,
+        groupField = "forestname",
+        attribution = "USDA Forest Service — Administrative Forest Boundaries",
+        disclaimer = "National Forest System land (the White Mountain NF reaches into western Maine). General administrative boundary — check the district map and posted rules before you hunt.",
+        legalLink = "https://www.fs.usda.gov/whitemountain",
+    ),
+    MapOverlay(
         id = "wmd",
         label = "Wildlife Mgmt Districts",
         layerUrl = "$GIS_HOST/WMD/FeatureServer/0",
@@ -188,7 +207,7 @@ internal fun preloadOverlays(context: Context) {
     for (ov in OVERLAYS) {
         if (GeoCache.load(context, ov.id) != null) continue
         runCatching {
-            MaineGisRepository.fetchGeoJson(ov.layerUrl, ov.generalizeDeg)
+            MaineGisRepository.fetchGeoJson(ov.layerUrl, ov.generalizeDeg, ov.where)
                 .also { GeoCache.save(context, ov.id, it) }
         }
     }
@@ -228,6 +247,7 @@ private sealed interface SpotForecast {
 /** Center of the state as a sensible default until we have the device's location. */
 private val MAINE_CENTER = LatLng(Location.LAT, Location.LON)
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MapScreen() {
     val context = LocalContext.current
@@ -319,7 +339,7 @@ fun MapScreen() {
                 loading[ov.id] = true
                 val cached = GeoCache.load(context, ov.id)
                 val geo = cached ?: runCatching {
-                    withContext(Dispatchers.IO) { MaineGisRepository.fetchGeoJson(ov.layerUrl, ov.generalizeDeg) }
+                    withContext(Dispatchers.IO) { MaineGisRepository.fetchGeoJson(ov.layerUrl, ov.generalizeDeg, ov.where) }
                         .also { GeoCache.save(context, ov.id, it) }
                 }.getOrNull()
                 if (geo != null) data[ov.id] = geo
@@ -404,14 +424,18 @@ fun MapScreen() {
             )
         }
 
-        selected?.let { info ->
-            Box(Modifier.fillMaxSize().clickableNoRipple { selected = null; highlight = null })
-            FeatureSheet(
-                info = info,
-                forecast = spotFx,
-                onDismiss = { selected = null; highlight = null },
-                modifier = Modifier.align(Alignment.BottomCenter),
-            )
+    }
+
+    // The property / spot sheet — a real draggable bottom sheet: swipe down to dismiss,
+    // and its content scrolls without fighting the drag.
+    selected?.let { info ->
+        val sheetState = rememberModalBottomSheetState()
+        ModalBottomSheet(
+            onDismissRequest = { selected = null; highlight = null },
+            sheetState = sheetState,
+            containerColor = KairosColors.Surface,
+        ) {
+            FeatureSheetContent(info, spotFx)
         }
     }
 }
@@ -654,6 +678,17 @@ private fun describeFeature(ov: MapOverlay, f: org.maplibre.geojson.Feature, lat
         links = listOfNotNull(ov.legalLink?.let { "Official expanded-archery info (Maine IF&W)" to it }),
         lat = lat, lon = lon,
     )
+    "national-forest" -> FeatureInfo(
+        overlay = ov,
+        title = f.str("forestname") ?: f.str("FORESTNAME") ?: "National Forest",
+        facts = listOfNotNull(
+            (f.str("gis_acres") ?: f.str("GIS_ACRES"))?.toDoubleOrNull()?.let { "Size" to "%,d acres".format(it.toInt()) },
+        ),
+        moreFacts = emptyList(),
+        description = null,
+        links = listOfNotNull(ov.legalLink?.let { "White Mountain National Forest (USDA FS)" to it }),
+        lat = lat, lon = lon,
+    )
     "wmd" -> FeatureInfo(
         overlay = ov,
         title = "Wildlife Management District ${f.str("IDENTIFIER") ?: "?"}",
@@ -792,35 +827,26 @@ private fun LayerSheet(
 }
 
 @Composable
-private fun FeatureSheet(info: FeatureInfo, forecast: SpotForecast?, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
+private fun FeatureSheetContent(info: FeatureInfo, forecast: SpotForecast?) {
     val uriHandler = LocalUriHandler.current
     var expanded by remember(info) { mutableStateOf(false) }
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        color = KairosColors.Surface,
-        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
-        shadowElevation = 12.dp,
-    ) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 14.dp, bottom = 20.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                info.overlay?.let {
-                    Box(Modifier.size(12.dp).background(it.color, RoundedCornerShape(3.dp)))
-                    Spacer(Modifier.width(10.dp))
-                }
-                Text(
-                    info.overlay?.label ?: "Spot forecast",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = KairosColors.Dim,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f),
-                )
-                IconButton(onClick = onDismiss) {
-                    Icon(Icons.Filled.Close, contentDescription = "Close", tint = KairosColors.Dim)
-                }
+    Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            info.overlay?.let {
+                Box(Modifier.size(12.dp).background(it.color, RoundedCornerShape(3.dp)))
+                Spacer(Modifier.width(10.dp))
             }
-            Text(info.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = KairosColors.Text)
+            Text(
+                info.overlay?.label ?: "Spot forecast",
+                style = MaterialTheme.typography.labelMedium,
+                color = KairosColors.Dim,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+        Spacer(Modifier.height(2.dp))
+        Text(info.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = KairosColors.Text)
 
-            Column(Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState())) {
+        Column(Modifier.heightIn(max = 440.dp).verticalScroll(rememberScrollState())) {
                 if (info.facts.isNotEmpty()) {
                     Spacer(Modifier.height(8.dp))
                     info.facts.forEach { (k, v) -> FactRow(k, v) }
@@ -868,7 +894,6 @@ private fun FeatureSheet(info: FeatureInfo, forecast: SpotForecast?, onDismiss: 
                 }
             }
         }
-    }
 }
 
 @Composable

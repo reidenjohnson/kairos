@@ -395,6 +395,9 @@ ownership does not imply a right of access; respect posted land and private inho
   https://services1.arcgis.com/RbMX0mRVOFNTdLzd/arcgis/rest/services/MaineDIFW_WildlifeManagementAreas/FeatureServer
 - Wildlife Management Districts (1–29) — Maine DIFW, "Wildlife Management Districts" —
   https://services1.arcgis.com/RbMX0mRVOFNTdLzd/arcgis/rest/services/WMD/FeatureServer
+- National Forest — USDA Forest Service, "Administrative Forest Boundaries" (White Mountain NF, which
+  reaches into western Maine; filtered server-side to that forest) —
+  https://apps.fs.usda.gov/arcx/rest/services/EDW/EDW_ForestSystemBoundaries_01/MapServer ; forest info: https://www.fs.usda.gov/whitemountain
 - Base tiles — USGS The National Map (USGSTopo, USGSImageryOnly), public domain —
   https://basemap.nationalmap.gov/ ; OpenFreeMap street style — https://openfreemap.org/
 - Rendering — MapLibre Native Android (open-source, no API key) — https://maplibre.org/
