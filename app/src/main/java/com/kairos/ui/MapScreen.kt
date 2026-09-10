@@ -416,12 +416,19 @@ private fun syncOverlays(style: Style, enabled: Set<String>, data: Map<String, S
 private val NAME_KEYS = listOf("name", "owner", "unit", "wmd", "district", "area", "label")
 private val DETAIL_KEYS = listOf("description", "descriptio", "legal", "towns", "town", "acres", "type")
 
-/** First property whose key matches any of [keys] and has a non-blank value. */
+/** First property whose key matches any of [keys] and has a non-blank value. Reads the
+ *  JSON element directly and skips JSON-null / non-string values — MapLibre's
+ *  getStringProperty() throws on a JsonNull, which was crashing the tap handler. */
 private fun org.maplibre.geojson.Feature.pick(keys: List<String>): String? {
-    val k = properties()?.keySet()?.firstOrNull { key ->
-        keys.any { key.contains(it, ignoreCase = true) } && !getStringProperty(key).isNullOrBlank()
-    } ?: return null
-    return getStringProperty(k)
+    val props = properties() ?: return null
+    for (key in props.keySet()) {
+        if (keys.none { key.contains(it, ignoreCase = true) }) continue
+        val el = props.get(key) ?: continue
+        if (el.isJsonNull || !el.isJsonPrimitive) continue
+        val value = el.asString
+        if (value.isNotBlank()) return value
+    }
+    return null
 }
 
 /** Which overlay (if any) sits under the tap, plus a best-effort feature name + details. */
