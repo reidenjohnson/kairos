@@ -11,6 +11,7 @@ activityCompose = "1.13.0"
 lifecycleRuntimeKtx = "2.11.0"
 composeBom = "2026.08.00"
 playServicesLocation = "21.4.0"
+maplibre = "11.8.0"
 wearTiles = "1.6.2"
 wearProtolayout = "1.4.2"
 concurrentFutures = "1.2.0"
@@ -31,6 +32,7 @@ androidx-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
 androidx-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
 androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
 play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playServicesLocation" }
+maplibre-android = { group = "org.maplibre.gl", name = "android-sdk", version.ref = "maplibre" }
 androidx-wear-tiles = { group = "androidx.wear.tiles", name = "tiles", version.ref = "wearTiles" }
 androidx-wear-protolayout = { group = "androidx.wear.protolayout", name = "protolayout", version.ref = "wearProtolayout" }
 androidx-wear-protolayout-material = { group = "androidx.wear.protolayout", name = "protolayout-material", version.ref = "wearProtolayout" }

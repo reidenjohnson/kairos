@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.Forest
+import androidx.compose.material.icons.outlined.Map
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.WaterDrop
 import androidx.compose.material.icons.automirrored.outlined.ShowChart
@@ -82,7 +83,7 @@ sealed interface UiState {
     data class Error(val message: String) : UiState
 }
 
-private enum class Dest { TODAY, SPECIES, WEATHER, SEASONS, DEADLINES, WEEKLY, SETTINGS, DETAIL, PLAN }
+private enum class Dest { TODAY, SPECIES, MAP, WEATHER, SEASONS, DEADLINES, WEEKLY, SETTINGS, DETAIL, PLAN }
 
 /**
  * One place in the app. [seasonFocus] applies to SEASONS; [detailSpecies] to DETAIL;
@@ -228,6 +229,7 @@ fun KairosApp(onToggleTheme: (Boolean) -> Unit = {}) {
             val title = when (dest) {
                 Dest.TODAY -> "Today"
                 Dest.SPECIES -> if (current.listSide == Side.FISH) "Fish" else "Hunt"
+                Dest.MAP -> "Map"
                 Dest.WEATHER -> "Weather"
                 Dest.SEASONS -> "Seasons"
                 Dest.DEADLINES -> "Licenses & lotteries"
@@ -275,6 +277,7 @@ fun KairosApp(onToggleTheme: (Boolean) -> Unit = {}) {
                             onOpenWeather = { goTo(NavEntry(Dest.WEATHER)) },
                         )
                         Dest.WEATHER -> WeatherScreen(state = state)
+                        Dest.MAP -> MapScreen()
                         Dest.SPECIES -> SideSpeciesScreen(
                             state = state,
                             side = current.listSide ?: Side.HUNT,
@@ -352,6 +355,9 @@ private fun DrawerContent(
         }
         DrawerItem("Fish", Icons.Outlined.WaterDrop, current == Dest.SPECIES && currentSide == Side.FISH) {
             onSelectSide(Side.FISH)
+        }
+        DrawerItem("Map", Icons.Outlined.Map, current == Dest.MAP) {
+            onSelect(Dest.MAP)
         }
         DrawerItem("Seasons", Icons.Filled.CalendarMonth, current == Dest.SEASONS) {
             onSelect(Dest.SEASONS)
