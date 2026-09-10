@@ -16,7 +16,7 @@ import com.kairos.R
 /**
  * Notification plumbing: one channel for Kairos' daily reminders, plus a small helper
  * to post a notification that deep-opens the app. Kept intentionally simple — the
- * batched [DailyForecastWorker] decides what (if anything) to say each day.
+ * batched [DailyReminders] pass decides what (if anything) to say each day.
  */
 object Notifications {
     const val CHANNEL_ID = "kairos_reminders"

@@ -181,6 +181,8 @@ fun KairosApp(onToggleTheme: (Boolean) -> Unit = {}) {
         LaunchedEffect(reloadKey) {
             if (state is UiState.Ready) refreshing = true else state = UiState.Loading
             val place = LocationProvider.current(context) ?: Location.SEBAGO
+            // Remember where we looked so the daily reminder can forecast it without a slow GPS fix.
+            com.kairos.notify.NotifyPrefsBridge.saveLastPlace(context, place)
             try {
                 val forecast = withContext(Dispatchers.IO) { WeatherRepository.fetch(place) }
                 ForecastCache.save(context, forecast)

@@ -1,53 +1,53 @@
 package com.kairos.notify
 
+import android.app.AlarmManager
+import android.app.PendingIntent
 import android.content.Context
-import androidx.work.Constraints
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.NetworkType
-import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkManager
-import java.time.Duration
+import android.content.Intent
 import java.time.LocalDateTime
 import java.time.LocalTime
-import java.util.concurrent.TimeUnit
+import java.time.ZoneId
 
 /**
- * Schedules (or cancels) the single daily reminder job. One [DailyForecastWorker]
- * runs about once a day, first fire aimed at the next ~7 AM, needing a network. Using
- * a periodic job (not exact alarms) keeps it battery-light per the Stride 4 spec — the
- * exact minute of a "best time today" nudge does not matter.
+ * Schedules the single daily reminder. Uses an **AlarmManager** alarm rather than
+ * WorkManager, because Samsung (and other OEMs) aggressively defer WorkManager for apps
+ * they've put to sleep — which is why reminders only showed up when the app was opened.
+ *
+ * `setAndAllowWhileIdle` fires even in Doze without needing the exact-alarm permission;
+ * the exact minute of a "best time today" nudge doesn't matter, only that it fires. Each
+ * firing ([ReminderReceiver]) reschedules the next day, and [BootReceiver] restores it
+ * after a reboot (which clears alarms).
  */
 object NotificationScheduler {
-    private const val WORK_NAME = "kairos_daily_reminders"
+    private const val REQUEST = 4711
     private val RUN_AT = LocalTime.of(7, 0)
+    const val ACTION = "com.kairos.notify.DAILY_REMINDER"
 
     fun schedule(context: Context) {
-        val request = PeriodicWorkRequestBuilder<DailyForecastWorker>(1, TimeUnit.DAYS)
-            .setInitialDelay(initialDelayMinutes(), TimeUnit.MINUTES)
-            .setConstraints(
-                Constraints.Builder()
-                    .setRequiredNetworkType(NetworkType.CONNECTED)
-                    .build(),
-            )
-            .build()
-
-        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-            WORK_NAME,
-            // Keep an already-scheduled job rather than resetting its clock on every launch.
-            ExistingPeriodicWorkPolicy.KEEP,
-            request,
-        )
+        val am = context.getSystemService(AlarmManager::class.java) ?: return
+        am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, nextTriggerMillis(), pendingIntent(context))
     }
 
     fun cancel(context: Context) {
-        WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
+        val am = context.getSystemService(AlarmManager::class.java) ?: return
+        am.cancel(pendingIntent(context))
     }
 
-    /** Minutes from now until the next [RUN_AT]. */
-    private fun initialDelayMinutes(): Long {
+    private fun pendingIntent(context: Context): PendingIntent {
+        val intent = Intent(context, ReminderReceiver::class.java).setAction(ACTION)
+        return PendingIntent.getBroadcast(
+            context,
+            REQUEST,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+    }
+
+    /** Epoch millis of the next [RUN_AT] (today if still ahead, else tomorrow). */
+    private fun nextTriggerMillis(): Long {
         val now = LocalDateTime.now()
         var next = now.toLocalDate().atTime(RUN_AT)
         if (!next.isAfter(now)) next = next.plusDays(1)
-        return Duration.between(now, next).toMinutes().coerceAtLeast(1)
+        return next.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
     }
 }
