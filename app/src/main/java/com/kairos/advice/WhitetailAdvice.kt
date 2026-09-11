@@ -3,9 +3,11 @@ package com.kairos.advice
 import com.kairos.data.DayTiming
 import com.kairos.engine.Conditions
 import com.kairos.engine.HuntMethod
+import com.kairos.engine.MAINE_AIR_NORMAL_F
 import com.kairos.engine.Side
 import com.kairos.engine.Species
 import java.time.LocalDate
+import kotlin.math.roundToInt
 
 /**
  * Whitetail deer, the deep content. The deer year runs on day length, so the calendar
@@ -56,6 +58,18 @@ internal fun whitetailPlan(
     val warm = warmForSeason(c.airF, date.monthValue)
     val rut = phase == DeerPhase.RUT
 
+    // Whitetail Research (Derrick Dixon, thermal-drone study) layer, advice only, no
+    // scoring change. Two ideas: (1) the lever early on is temperature against the LOCAL
+    // NORMAL, not the absolute number, and being warmer than normal shifts the deer's
+    // *schedule* (to the cool edges and the dark), it doesn't make the day "bad"; (2) in
+    // light wind, mature bucks travel on the thermals more than the wind, which only takes
+    // over past ~10-15 mph. See WHITETAIL_RESEARCH.md in the kairos docs folder.
+    val normalAir = MAINE_AIR_NORMAL_F[date.monthValue]?.toDouble()
+    val anomalyF = normalAir?.let { c.airF - it }        // positive = warmer than normal
+    val aboveNormal = anomalyF != null && anomalyF >= 8.0 // ~10-degrees-warmer schedule shift
+    val belowNormal = anomalyF != null && anomalyF <= -5.0
+    val lightWind = c.windMph < 10.0                      // below the thermal-override band
+
     val core = when (phase) {
         DeerPhase.EARLY -> "Deer are on a simple pattern: bedded all day, then out to food in the evening. Hunt the hot food source and the trails into it."
         DeerPhase.PRE_RUT -> "Bucks are on their feet more and starting to search for does. Hunt the travel routes and pinch points between bedding and food."
@@ -64,9 +78,11 @@ internal fun whitetailPlan(
         DeerPhase.LATE -> "In the cold, deer bed close to food and move as little as they can. Set up tight to the best food for the last hours of light."
     }
     val weatherClause = when {
-        w.frontIncoming -> " A cold front's moving in, the best deer-movement trigger there is. Be in the woods early and stay late."
-        warm && !rut -> " But it's warm for the season, so they'll move mostly after dark, so hunt the very edges of light."
-        warm && rut -> " It's warm, but the rut can override that, and a cruising buck will still move midday, so sit long."
+        w.frontIncoming -> " A cold front's moving in. It pays off most when it breaks a warm stretch, so the hotter it's been, the harder they'll move in daylight once it passes. Be set before the temperature breaks."
+        aboveNormal && !rut -> " It's running about ${anomalyF!!.roundToInt()}° above normal, which just shifts their schedule to the cool edges and after dark, not a bad day, so hunt first and last light and don't count on midday."
+        warm && !rut -> " But it's warm for the season, so movement slides to the cool edges of light and after dark."
+        (aboveNormal || warm) && rut -> " It's warm, but the rut overrides comfort, and a cruising buck will still move midday, so sit long."
+        belowNormal && !rut -> " It's running below normal, which lifts the heat that holds them back, so daylight and even midday movement can open up."
         w.windy -> " It's windy, so they'll hold in sheltered cover, so hunt the calm, downwind side of ridges and thickets."
         else -> " Steady weather, so hunt the usual first- and last-light windows."
     }
@@ -78,12 +94,15 @@ internal fun whitetailPlan(
         DeerPhase.RUT -> "Hunt a funnel and sit all day; rattle and grunt to pull cruising bucks, and use a doe bleat to stop one in range."
         DeerPhase.POST_RUT -> "Sit on the best food and be patient; a soft grunt can still turn a buck hunting a late doe."
     }
-    val tacticLine = if (w.windy) "$tacticBase Hunt the sheltered, downwind side where deer bed out of the wind."
-    else "$tacticBase Play the wind so your scent blows away from where you expect them."
+    val tacticLine = when {
+        w.windy -> "$tacticBase Hunt the sheltered, downwind side where deer bed out of the wind."
+        lightWind -> "$tacticBase In light wind play the thermals: your scent rides uphill in the morning and sinks downhill in the evening, so set up where it drifts away from the deer."
+        else -> "$tacticBase Play the wind so your scent blows away from where you expect them."
+    }
 
     val whyBrief = when {
-        w.frontIncoming -> "The temperature drop before a front makes deer feed heavily and move in daylight."
-        warm -> "Deer wear a heavy coat, so warm days overheat them and push their movement into the night."
+        w.frontIncoming -> "A front helps most when it breaks a warm spell, lifting the heat that was holding deer to the night."
+        aboveNormal || warm -> "Deer wear a heavy coat, so warmer-than-normal air just shifts their movement to the cool edges and the dark."
         rut -> "Rut movement is driven by day length, not weather, so bucks search for does no matter the conditions."
         else -> "With calm weather, deer keep to their safe routine, feeding at first and last light."
     }
@@ -115,28 +134,32 @@ internal fun whitetailPlan(
     val whenBrief = buildString {
         append("Best window today is $windows. ")
         when {
-            w.frontIncoming -> append("A cold front is dropping in, so get in the woods early and stay late; the first cold morning behind it is prime.")
-            warm && !rut -> append("It's warm, so hunt the very first and last light hard and keep expectations honest midday.")
+            w.frontIncoming -> append("A cold front is dropping in, so be set before the temperature breaks and stay late; the first cold morning behind it is prime.")
+            (aboveNormal || warm) && !rut -> append("It's warmer than normal, so hunt first and last light and go easy on midday. Deer also tend to stand within minutes of the day's high as the thermals switch, so be in place before then.")
             rut -> append("It's the rut, so a buck can move any hour: mornings are best, but the all-day sit pays off.")
             phase == DeerPhase.LATE -> append("Cold, calm afternoons pull deer to food before dark, so the last two hours are your window.")
             else -> append("Steady weather means the usual windows carry the day: first and last light near food.")
         }
     }
-    val whenMore = "A cold front, a sharp drop in temperature, is the best thing that can happen to a deer hunter: deer feed hard right before it and move in daylight in the cool air right after. Warm spells do the opposite, pushing movement into the night."
+    val whenMore = "The lever early in the season is temperature against the local normal, not the raw number. When it runs about ten degrees above normal, deer don't hunt worse, they just move their clock to the cool edges and after dark. The one to plan around: mature bucks tend to get up within five to ten minutes of the day's high temperature, as the thermals switch, then head for food, so know when today's high hits and be set before it. A cold front pays off most when it breaks a hot stretch, and the sharper the drop, the bigger the daylight burst as it passes. And outside the rut a mature buck's morning is bigger than his evening, long solo travel that can run to mid-morning, so don't cut the morning sit short."
 
     val howBrief = tacticLine
     val howMore = buildString {
         append(
-            if (w.windy) "In the wind, deer feel exposed and bed in sheltered spots, so hunt the calm, downwind side of ridges and thick cover, and let the wind cover your movement. "
-            else "Above all, play the wind: set up so your scent blows away from the deer, not toward their bedding or the food. They live by their nose. ",
+            when {
+                w.windy -> "In the wind, deer feel exposed and bed in sheltered spots, so hunt the calm, downwind side of ridges and thick cover, and let the wind cover your movement. "
+                lightWind -> "In light wind, mature bucks travel on the thermals more than the wind: warm air rises in the morning and pulls scent uphill, cool air sinks in the evening and pulls it downhill. Set up so those thermals carry your scent away from where deer bed and feed, and only go back to playing the plain wind once it climbs past about ten to fifteen miles an hour. "
+                else -> "Above all, play the wind: set up so your scent blows away from the deer, not toward their bedding or the food. They live by their nose. "
+            },
         )
         append(
             when {
-                w.frontIncoming -> "With the front moving in, hunt between the bedding and the food, since they'll be up early to feed before the weather turns."
-                warm -> "In the warmth, stay near cool, shaded bedding and catch them right at the edges of daylight."
-                else -> "The biggest mistake is moving too much, too soon, so get set and out-wait them."
+                w.frontIncoming -> "With the front moving in, hunt between the bedding and the food, since they'll be up early to feed before the weather turns. "
+                aboveNormal || warm -> "In the warmth, stay near cool, shaded bedding and catch them right at the edges of daylight. "
+                else -> "The biggest mistake is moving too much, too soon, so get set and out-wait them. "
             },
         )
+        append("However you set up, your way in and out matters as much as the stand, so slip in and out unseen and unsmelled.")
     }
 
     val whyMore = "Two things drive a deer's day: staying comfortable, and, in November, the urge to breed. Comfort explains the weather rules: they move when it's cool and hide when it's hot or windy. The breeding urge is set by the shortening days, which is why mid-November produces daylight movement no other time of year can, weather or not."

@@ -56,6 +56,8 @@ fun factsFor(name: String): SpeciesFacts? = when (name) {
     "Whitetail deer" -> SpeciesFacts(
         "The rut, by date", RUT_INTRO,
         listOf(
+            f("Early-season pattern", "Late Sep-early Oct", "Bachelor groups are still together and acorns concentrate the movement, the best window to pattern a specific buck. It breaks up within a week or two as the groups split and the bucks go nocturnal.", md(9, 15), md(10, 10)),
+            f("Acorn switch", "Sep-Oct", "As deer trade summer greens for acorns, their gut takes a week or two to adjust, so they feed more often through the change.", md(9, 15), md(10, 15)),
             f("Pre-rut", "Late Oct", "Bucks open scrapes, rub trees, and start cruising. Rattling and calling start to work.", md(10, 20), md(10, 31)),
             f("Seeking & chasing", "Early Nov", "Bucks are on their feet all day searching for the first does. The best daylight movement of the year.", md(11, 1), md(11, 7)),
             f("Peak breeding", "Mid-Nov", "Most does get bred. A buck locks down with a hot doe for a day or two, so it can seem to go quiet.", md(11, 8), md(11, 20)),
