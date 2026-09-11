@@ -34,9 +34,21 @@ import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.asin
+import kotlin.math.cos
+import kotlin.math.pow
+import kotlin.math.roundToInt
+import kotlin.math.sin
+import kotlin.math.sqrt
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -330,6 +342,18 @@ fun MapScreen() {
     LaunchedEffect(base) { MapPrefs.saveBase(context, base) }
     LaunchedEffect(enabled) { MapPrefs.saveEnabled(context, enabled) }
     var showLayers by remember { mutableStateOf(false) }
+    // Two-finger-hold distance measure: the two finger points (screen px) + yardage between them.
+    var measureA by remember { mutableStateOf<Offset?>(null) }
+    var measureB by remember { mutableStateOf<Offset?>(null) }
+    var measureYd by remember { mutableStateOf<Int?>(null) }
+    var measureDone by remember { mutableStateOf(false) } // fingers lifted → linger, then clear
+    // Keep the measured line up for a few seconds after release, then clear it.
+    LaunchedEffect(measureDone, measureA, measureB) {
+        if (measureDone && measureA != null) {
+            delay(6000)
+            measureA = null; measureB = null; measureYd = null; measureDone = false
+        }
+    }
     var map by remember { mutableStateOf<MapLibreMap?>(null) }
     var style by remember { mutableStateOf<Style?>(null) }
     var selected by remember { mutableStateOf<FeatureInfo?>(null) }
@@ -393,7 +417,7 @@ fun MapScreen() {
 
     BottomSheetScaffold(
         scaffoldState = scaffoldState,
-        sheetPeekHeight = if (selected != null) 128.dp else 0.dp,
+        sheetPeekHeight = if (selected != null) 172.dp else 0.dp,
         sheetContainerColor = KairosColors.Surface,
         sheetContent = {
             selected?.let { info ->
@@ -410,6 +434,7 @@ fun MapScreen() {
     ) { _ ->
     Box(Modifier.fillMaxSize()) {
         MapLibreView(
+            onMeasure = { a, b, yd, done -> measureA = a; measureB = b; measureYd = yd; measureDone = done },
             onMapReady = { m ->
                 map = m
                 // Tap a property → identify it, highlight its whole unit, forecast the spot.
@@ -481,15 +506,18 @@ fun MapScreen() {
             style?.let { syncOverlays(it, enabled, data) }
         }
 
-        // Highlight the tapped unit (OnX-style) on the current style.
+        // Highlight the tapped unit (OnX-style) on the current style. triggerRepaint forces the
+        // map to draw the new layer now, instead of waiting for the next camera move.
         LaunchedEffect(style, highlight) {
             style?.let { applyHighlight(it, highlight) }
+            map?.triggerRepaint()
         }
 
         // Drop a pin exactly where the forecast was taken (tap or long-press), so you can
         // see the spot the numbers belong to. Cleared when the sheet closes.
         LaunchedEffect(style, selected?.lat, selected?.lon) {
             style?.let { applySpotPin(it, selected?.lat, selected?.lon) }
+            map?.triggerRepaint()
         }
 
         // Run the engine for the tapped/long-pressed spot: weather + hunt/fish + a plan.
@@ -514,6 +542,10 @@ fun MapScreen() {
                 }
             }
         }
+
+        // Passive draw layer for the two-finger measure line (no touch handling of its own, so
+        // it never blocks the map — the gesture is detected on the MapView itself).
+        MeasureLineOverlay(measureA, measureB, measureYd)
 
         Column(Modifier.align(Alignment.TopEnd).padding(16.dp), horizontalAlignment = Alignment.End) {
             MapIconButton(Icons.Outlined.Layers, "Map layers") { showLayers = true }
@@ -582,15 +614,26 @@ private fun Modifier.clickableNoRipple(onClick: () -> Unit): Modifier = this.the
     Modifier.pointerInput(Unit) { detectTapGestures(onTap = { onClick() }) },
 )
 
-/** The MapLibre [MapView] hosted in Compose, with its Android lifecycle wired up. */
+/** The MapLibre [MapView] hosted in Compose, with its Android lifecycle wired up. [onMeasure]
+ *  reports the two-finger-hold distance line (null args = cleared). */
 @Composable
-private fun MapLibreView(onMapReady: (MapLibreMap) -> Unit) {
+private fun MapLibreView(
+    onMapReady: (MapLibreMap) -> Unit,
+    onMeasure: (Offset?, Offset?, Int?, Boolean) -> Unit,
+) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val gesture = remember { MeasureGesture() }
     val mapView = remember {
         MapView(context).apply {
             onCreate(null)
-            getMapAsync { onMapReady(it) }
+            getMapAsync { m ->
+                onMapReady(m)
+                // Detect a two-finger HOLD at the touch layer: a still two-finger press measures
+                // (consumes the touch); a normal pinch/pan is left to the map to zoom/scroll.
+                @SuppressLint("ClickableViewAccessibility")
+                setOnTouchListener { _, ev -> gesture.onTouch(ev, m, onMeasure) }
+            }
         }
     }
 
@@ -642,19 +685,25 @@ private fun syncOverlays(style: Style, enabled: Set<String>, data: Map<String, S
         if (want && !hasSrc) {
             style.addSource(GeoJsonSource(srcId, geo))
             if (ov.filled) {
+                // Fill only — NO per-parcel outline. Big units (e.g. Scarborough Marsh WMA) are
+                // hundreds of separate acquisition parcels; outlining each drew a mess of interior
+                // lines. The uniform fill makes abutting parcels read as one shape (exact
+                // boundaries kept, nothing generalized); a crisp outline still appears on tap.
                 val fill = FillLayer(fillId, srcId).withProperties(
                     PropertyFactory.fillColor(ov.color.toArgb()),
-                    PropertyFactory.fillOpacity(0.22f), // lighter wash so overlapping layers don't muddy
+                    PropertyFactory.fillOpacity(0.30f),
                 )
                 ov.minZoom?.let { fill.setMinZoom(it.toFloat()) }
                 style.addLayer(fill)
+            } else {
+                // Unfilled layers (management districts) are the boundary line itself.
+                val line = LineLayer(lineId, srcId).withProperties(
+                    PropertyFactory.lineColor(ov.color.toArgb()),
+                    PropertyFactory.lineWidth(2.4f),
+                )
+                ov.minZoom?.let { line.setMinZoom(it.toFloat()) }
+                style.addLayer(line)
             }
-            val line = LineLayer(lineId, srcId).withProperties(
-                PropertyFactory.lineColor(ov.color.toArgb()),
-                PropertyFactory.lineWidth(if (ov.filled) 1.6f else 2.4f),
-            )
-            ov.minZoom?.let { line.setMinZoom(it.toFloat()) }
-            style.addLayer(line)
             // Name label — only once zoomed to property level, so the map isn't word-noise.
             if (ov.labelFields.isNotEmpty()) {
                 val nameExpr =
@@ -685,12 +734,10 @@ private fun syncOverlays(style: Style, enabled: Set<String>, data: Map<String, S
     }
 }
 
-/** Highlight the whole tapped unit (all features sharing its group value, or the single
- *  parcel by OBJECTID) OnX-style: a clean outline with NO fill, so the land underneath stays
- *  visible. A luminous cyan halo + a crisp white core reads on satellite OR topo — the
- *  saturated glow gives the "property lit up" look and stays visible on light ground without a
- *  hard black edge; widths scale with zoom so it looks the same at every scale. One look for
- *  every overlay. Removes any prior highlight first. */
+/** Highlight the whole tapped unit (all features sharing its group value, or the single parcel
+ *  by OBJECTID). A translucent cyan FILL, not an outline — a big unit is hundreds of parcels, so
+ *  outlining each drew a mess of interior lines; a fill lights up the whole unit as one clean
+ *  shape over any base map. Removes any prior highlight first. */
 private fun applyHighlight(style: Style, highlight: Highlight?) {
     listOf("hl-line", "hl-glow", "hl-casing", "hl-fill").forEach { id -> style.getLayer(id)?.let { style.removeLayer(it) } }
     if (highlight == null) return
@@ -705,32 +752,11 @@ private fun applyHighlight(style: Style, highlight: Highlight?) {
     } else {
         Expression.eq(Expression.get(highlight.field), Expression.literal(highlight.value))
     }
-    // Zoom-responsive widths so the selection reads the same whether zoomed way out or in.
-    val coreWidth = Expression.interpolate(
-        Expression.linear(), Expression.zoom(),
-        Expression.stop(8, 1.6f), Expression.stop(12, 3f), Expression.stop(16, 4.5f),
-    )
-    val glowWidth = Expression.interpolate(
-        Expression.linear(), Expression.zoom(),
-        Expression.stop(8, 5f), Expression.stop(12, 9f), Expression.stop(16, 13f),
-    )
-    // A soft luminous cyan halo — saturated so it stays visible on satellite AND light topo,
-    // no hard black casing; the blur makes it read as a glow, not a second line.
-    val glow = LineLayer("hl-glow", srcId).withProperties(
-        PropertyFactory.lineColor(android.graphics.Color.argb(150, 0, 224, 255)),
-        PropertyFactory.lineWidth(glowWidth),
-        PropertyFactory.lineBlur(4f),
-        PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
-        PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
+    val fill = FillLayer("hl-fill", srcId).withProperties(
+        PropertyFactory.fillColor(android.graphics.Color.argb(255, 0, 224, 255)), // cyan selection
+        PropertyFactory.fillOpacity(0.35f),
     ).withFilter(filter)
-    val line = LineLayer("hl-line", srcId).withProperties(
-        PropertyFactory.lineColor(android.graphics.Color.WHITE),
-        PropertyFactory.lineWidth(coreWidth),
-        PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
-        PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
-    ).withFilter(filter)
-    style.addLayer(glow)
-    style.addLayer(line)
+    style.addLayer(fill)
 }
 
 /** Drop (or move, or clear) the "you tapped here" marker — a bright amber dot with a white
@@ -1090,6 +1116,7 @@ private fun MapIconButton(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     desc: String,
     modifier: Modifier = Modifier,
+    tint: Color = KairosColors.Pine,
     onClick: () -> Unit,
 ) {
     Surface(
@@ -1100,9 +1127,101 @@ private fun MapIconButton(
         onClick = onClick,
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Icon(icon, contentDescription = desc, tint = KairosColors.Pine)
+            Icon(icon, contentDescription = desc, tint = tint)
         }
     }
+}
+
+/** Draws the two-finger measure line + yardage from state. Purely visual (no pointerInput), so
+ *  it never intercepts touches — the gesture is detected on the MapView by [MeasureGesture]. */
+@Composable
+private fun MeasureLineOverlay(a: Offset?, b: Offset?, yards: Int?) {
+    if (a == null || b == null) return
+    Box(Modifier.fillMaxSize()) {
+        Canvas(Modifier.fillMaxSize()) {
+            drawLine(Color(0f, 0f, 0f, 0.5f), a, b, strokeWidth = 10f, cap = StrokeCap.Round) // soft shadow
+            drawLine(Color.White, a, b, strokeWidth = 4f, cap = StrokeCap.Round)
+            listOf(a, b).forEach {
+                drawCircle(Color.White, radius = 12f, center = it)
+                drawCircle(Color(0f, 0.88f, 1f), radius = 7f, center = it) // cyan endpoints
+            }
+        }
+        val mid = Offset((a.x + b.x) / 2f, (a.y + b.y) / 2f)
+        Surface(
+            shape = RoundedCornerShape(999.dp),
+            color = KairosColors.Surface,
+            shadowElevation = 3.dp,
+            modifier = Modifier.offset { IntOffset((mid.x - 46.dp.toPx()).toInt(), (mid.y - 18.dp.toPx()).toInt()) },
+        ) {
+            Text(
+                "%,d yd".format(yards ?: 0),
+                Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                color = KairosColors.Text,
+            )
+        }
+    }
+}
+
+/** Detects a two-finger HOLD on the map (as opposed to a pinch or pan) and turns it into a live
+ *  distance line. Used as the MapView's OnTouchListener: returns true to consume (measuring, so
+ *  the map stays put), false to let the map zoom/scroll normally. A quick pinch (fingers change
+ *  separation past a tolerance before the hold delay) is handed straight to the map; a still
+ *  two-finger press past the delay locks into measuring until a finger lifts. */
+private class MeasureGesture {
+    private var t0 = 0L
+    private var span0 = 0f
+    private var active = false
+    private var rejected = false
+    private var lastA: Offset? = null
+    private var lastB: Offset? = null
+    private var lastYd: Int? = null
+
+    private fun span(ev: android.view.MotionEvent): Float {
+        if (ev.pointerCount < 2) return 0f
+        return kotlin.math.hypot(ev.getX(0) - ev.getX(1), ev.getY(0) - ev.getY(1))
+    }
+
+    fun onTouch(ev: android.view.MotionEvent, map: MapLibreMap, onMeasure: (Offset?, Offset?, Int?, Boolean) -> Unit): Boolean {
+        when (ev.actionMasked) {
+            android.view.MotionEvent.ACTION_POINTER_DOWN -> if (ev.pointerCount == 2) {
+                t0 = System.currentTimeMillis(); span0 = span(ev); active = false; rejected = false
+            }
+            android.view.MotionEvent.ACTION_MOVE -> if (ev.pointerCount == 2 && !rejected) {
+                if (!active) {
+                    if (kotlin.math.abs(span(ev) - span0) > 60f) { rejected = true; return false } // a pinch → let the map zoom
+                    if (System.currentTimeMillis() - t0 < 160L) return false                        // still deciding (a held press moves nothing)
+                    active = true
+                }
+                val a = Offset(ev.getX(0), ev.getY(0)); val b = Offset(ev.getX(1), ev.getY(1))
+                val la = map.projection.fromScreenLocation(PointF(a.x, a.y))
+                val lb = map.projection.fromScreenLocation(PointF(b.x, b.y))
+                lastA = a; lastB = b; lastYd = haversineYards(la, lb)
+                onMeasure(a, b, lastYd, false)
+                return true // consume so the map holds still while measuring
+            }
+            android.view.MotionEvent.ACTION_POINTER_UP,
+            android.view.MotionEvent.ACTION_UP,
+            android.view.MotionEvent.ACTION_CANCEL -> {
+                val wasActive = active
+                active = false; rejected = false
+                if (wasActive) { onMeasure(lastA, lastB, lastYd, true); return true } // keep the line, let it linger
+            }
+        }
+        return active
+    }
+}
+
+/** Great-circle distance between two map points, in yards. */
+private fun haversineYards(a: LatLng, b: LatLng): Int {
+    val r = 6371000.0 // earth radius, meters
+    val dLat = Math.toRadians(b.latitude - a.latitude)
+    val dLon = Math.toRadians(b.longitude - a.longitude)
+    val la1 = Math.toRadians(a.latitude); val la2 = Math.toRadians(b.latitude)
+    val h = sin(dLat / 2).pow(2) + cos(la1) * cos(la2) * sin(dLon / 2).pow(2)
+    val meters = 2 * r * asin(sqrt(h))
+    return (meters * 1.0936133).roundToInt()
 }
 
 @Composable
@@ -1198,28 +1317,37 @@ private fun FeatureSheetContent(
             }
         }
 
-        // Header: kind + title, with a close (X) that clears the selection entirely.
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            info.overlay?.let {
-                Box(Modifier.size(10.dp).background(it.color, RoundedCornerShape(3.dp)))
-                Spacer(Modifier.width(8.dp))
-            }
+        // Header: the property NAME big and first (so it stands out even in the collapsed peek),
+        // with the layer kind as a small kicker underneath, and a close (X).
+        Row(verticalAlignment = Alignment.Top) {
             Text(
-                info.overlay?.label ?: "Spot forecast",
-                style = MaterialTheme.typography.labelMedium,
-                color = KairosColors.Dim,
+                info.title,
+                style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
+                color = KairosColors.Text,
+                lineHeight = 30.sp,
                 modifier = Modifier.weight(1f),
             )
             Icon(
                 Icons.Filled.Close,
                 contentDescription = "Close",
                 tint = KairosColors.Faint,
-                modifier = Modifier.size(20.dp).clickableNoRipple(onClose),
+                modifier = Modifier.size(22.dp).clickableNoRipple(onClose),
             )
         }
-        Spacer(Modifier.height(2.dp))
-        Text(info.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = KairosColors.Text)
+        info.overlay?.let {
+            Spacer(Modifier.height(5.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(9.dp).background(it.color, RoundedCornerShape(3.dp)))
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    it.label,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = KairosColors.Dim,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        }
 
         // The honest hunting read for land parcels, right up top.
         info.hunting?.let { h ->
