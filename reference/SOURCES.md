@@ -203,6 +203,21 @@ winter coat); high wind makes deer bed in sheltered cover and cuts movement unti
 - Mossy Oak, "Barometric Pressure's Influence on Whitetail Movement" — https://www.mossyoak.com/our-obsession/blogs/deer/barometric-pressures-influence-on-whitetail-movement-4
 - MeatEater / Wired to Hunt, "Does Barometric Pressure Affect Deer Movement?" — https://www.themeateater.com/wired-to-hunt/whitetail-hunting/does-barometric-pressure-affect-deer-movement
 
+**Whitetail movement (thermal-drone observation — Derrick Dixon / Whitetail Research):** a
+season-long thermal-drone study of mature bucks. Encoded as *advice only* (no scored weight):
+(1) in light wind (under ~10-15 mph) bucks orient bedding and movement to **thermals** more than
+to horizontal wind, so read thermal direction (uphill on warming mornings, downhill as it cools),
+not just the wind arrow; (2) bucks tend to rise and move **within a few minutes of the day's peak
+temperature** as thermals switch; (3) **temperature relative to the local seasonal normal** (not the
+absolute number) governs the *schedule* — roughly 10°F above normal shifts activity to night and the
+last light without meaning "bad hunting," and a cold front pays off most when it **breaks that heat**;
+(4) morning movement outweighs evening for mature bucks; (5) **access** (a clean, undetected route in
+and out) matters more than the exact stand tree. Observational (drone-tracked individuals), so it
+informs Game Plan copy and Facts, not the 0-100 weights. See the project research doc
+`WHITETAIL_RESEARCH.md` for the per-claim breakdown.
+- Whitetail Research (Derrick Dixon), YouTube — https://www.youtube.com/@WhitetailResearch
+- MeatEater / Wired to Hunt Ep. 951, "Debunking Conventional Whitetail Wisdom with Thermal Drone Research" — https://www.themeateater.com/listen/wired-to-hunt/ep-951-debunking-conventional-whitetail-wisdom-with-thermal-drone-research
+
 **Whitetail rut timing (photoperiod, NOT weather):** the rut is triggered by day length, so
 peak breeding lands the same weeks each year (Maine ~mid-November) regardless of the weather;
 weather only changes whether rutting deer move in daylight. (Consistent with our decision to
