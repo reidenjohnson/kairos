@@ -2,6 +2,12 @@ package com.kairos.ui
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.PointF
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -21,21 +27,27 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import com.kairos.R
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.Directions
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.MyLocation
 import androidx.compose.material3.BottomSheetScaffold
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.offset
@@ -50,8 +62,6 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -86,7 +96,6 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.kairos.R
 import com.kairos.advice.buildSidePlan
 import com.kairos.data.GeoCache
 import com.kairos.data.Location
@@ -95,12 +104,12 @@ import com.kairos.data.MaineGisRepository
 import com.kairos.data.Place
 import com.kairos.data.WeatherRepository
 import com.kairos.engine.Side
+import org.json.JSONObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
-import kotlin.math.floor
 import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.geometry.LatLng
@@ -132,13 +141,12 @@ import org.maplibre.android.style.sources.GeoJsonSource
  * The feature info sheet shows that disclaimer.
  */
 
-/** The base maps a user can switch between, like OnX. */
-/** The three distinct views a hunter needs — a shaded topo, a labeled satellite (hybrid), and
- *  raw imagery. Kept deliberately minimal; earlier extra styles were redundant. */
+/** The base maps a user can switch between, like OnX. A clean light "Smooth" map (Positron-style),
+ *  raw satellite, and a shaded topo. All keyless. */
 internal enum class BaseMap(val label: String, val thumb: Int) {
-    SHADED("Shaded Topo", R.drawable.base_shaded),  // USGS topo + Esri hillshade — 3D relief (CalTopo look)
-    HYBRID("Hybrid", R.drawable.base_hybrid),       // USGS Imagery Topo — satellite + labels/contours
+    TOPO("Topo", R.drawable.base_esritopo),         // Esri World Topo — clean topo w/ parks + labels (default)
     AERIAL("Satellite", R.drawable.base_aerial),    // Esri World Imagery — sharp raw imagery
+    SMOOTH("Smooth", R.drawable.base_smooth),       // Esri Light Gray — clean, minimal (for reading filters)
 }
 
 /** One official Maine GIS overlay. Colors are map semantics, not brand primaries. */
@@ -149,6 +157,8 @@ internal data class MapOverlay(
     val color: Color,
     /** Polygon overlays draw a translucent fill + outline; false = outline only (districts). */
     val filled: Boolean,
+    /** A point layer (e.g. boat launches / water access) — drawn as a labeled dot, not a polygon. */
+    val point: Boolean = false,
     /** Server-side geometry generalization in degrees for big statewide layers; null = full res. */
     val generalizeDeg: Double?,
     /** ArcGIS attribute filter — narrows a national dataset to Maine's slice. */
@@ -265,6 +275,23 @@ internal val OVERLAYS: List<MapOverlay> = listOf(
         attribution = "Maine DIFW — Wildlife Management Districts",
         disclaimer = "The 29 statewide management districts that season dates and permits key off of.",
     ),
+    // Virginia public water access — official DWR launch/put-in points, as pins. Same
+    // data-driven pattern as the Maine polygon layers; it just renders as points. Handy for
+    // finding kayak/canoe put-ins (a ramp count of 0 = car-top / hand-launch only).
+    MapOverlay(
+        id = "va-water-access",
+        label = "Water access (VA)",
+        layerUrl = "https://services.dwr.virginia.gov/arcgis/rest/services/HUB_Layers/DWR_Boating_Access_Locations/FeatureServer/0",
+        color = Color(0xFF167C93), // brand Water (palette) — a launch / put-in
+        filled = false,
+        point = true,
+        generalizeDeg = null,
+        minZoom = 7.0, // show the dots a bit more zoomed out (just past National Forest's z6)
+        labelFields = listOf("SITENAME"),
+        attribution = "Virginia DWR — Public Boating & Water Access",
+        disclaimer = "Official Virginia DWR public water access sites. Nearly all allow car-top / hand launching for kayaks and canoes (a boat-ramp count of 0 means hand-launch only). Confirm parking and any launch fee before you go.",
+        legalLink = "https://dwr.virginia.gov/boating/access/",
+    ),
 )
 
 /**
@@ -295,6 +322,7 @@ private data class FeatureInfo(
     val lat: Double,
     val lon: Double,
     val hunting: HuntingStatus? = null,          // derived hunting read, for land parcels
+    val featureId: String? = null,               // OBJECTID for point overlays (selection swap)
 )
 
 /** Tone of the derived hunting read — drives the chip color. */
@@ -342,20 +370,24 @@ fun MapScreen() {
     LaunchedEffect(base) { MapPrefs.saveBase(context, base) }
     LaunchedEffect(enabled) { MapPrefs.saveEnabled(context, enabled) }
     var showLayers by remember { mutableStateOf(false) }
+    // Sub-filters within the Virginia water-access layer (kayak / ramp / concrete / accessible).
+    // None selected = show every site; selected chips AND together.
+    var waterFilters by remember { mutableStateOf(emptySet<String>()) }
     // Two-finger-hold distance measure: the two finger points (screen px) + yardage between them.
     var measureA by remember { mutableStateOf<Offset?>(null) }
     var measureB by remember { mutableStateOf<Offset?>(null) }
     var measureYd by remember { mutableStateOf<Int?>(null) }
     var measureDone by remember { mutableStateOf(false) } // fingers lifted → linger, then clear
-    // Keep the measured line up for a few seconds after release, then clear it.
+    // Briefly keep the measured line up after release so you can read it, then clear it.
     LaunchedEffect(measureDone, measureA, measureB) {
         if (measureDone && measureA != null) {
-            delay(6000)
+            delay(1800)
             measureA = null; measureB = null; measureYd = null; measureDone = false
         }
     }
     var map by remember { mutableStateOf<MapLibreMap?>(null) }
     var style by remember { mutableStateOf<Style?>(null) }
+    var zoom by remember { mutableStateOf(0.0) } // live camera zoom, shown bottom-left
     var selected by remember { mutableStateOf<FeatureInfo?>(null) }
     var highlight by remember { mutableStateOf<Highlight?>(null) }
     // When a tap overlaps several layers, all of them (for the in-sheet chooser); which one
@@ -365,34 +397,10 @@ fun MapScreen() {
     var spotFx by remember { mutableStateOf<SpotForecast?>(null) }
     val data = remember { mutableStateMapOf<String, String>() } // overlayId -> GeoJSON
     val loading = remember { mutableStateMapOf<String, Boolean>() }
-    var downloadPct by remember { mutableStateOf<Int?>(null) }
     var toast by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(toast) { if (toast != null) { delay(3500); toast = null } }
-
-    // Save the current view for offline: base tiles for the visible area (+3 zoom levels,
-    // capped) and every overlay cached to disk. All base maps are raster now, so any saves.
-    val startDownload = start@{
-        val m = map ?: return@start
-        val bounds = m.projection.visibleRegion.latLngBounds
-        val z = m.cameraPosition.zoom
-        val dlBase = base
-        enabled = OVERLAYS.map { it.id }.toSet() // load + cache every overlay for offline
-        downloadPct = 0
-        OfflineMaps.download(
-            context = context,
-            name = "Saved area",
-            base = dlBase,
-            styleUri = baseStyleUri(context, dlBase),
-            bounds = bounds,
-            minZoom = floor(z),
-            maxZoom = minOf(z + 3.0, 15.0),
-            onProgress = { downloadPct = it },
-            onComplete = { downloadPct = null; toast = "Saved for offline use" },
-            onError = { downloadPct = null; toast = it },
-        )
-    }
 
     // A standard (non-modal) bottom sheet so it can COLLAPSE to a small peek instead of
     // dismissing: swipe down minimizes it (the selection + map outline stay), swipe it all
@@ -437,6 +445,8 @@ fun MapScreen() {
             onMeasure = { a, b, yd, done -> measureA = a; measureB = b; measureYd = yd; measureDone = done },
             onMapReady = { m ->
                 map = m
+                zoom = m.cameraPosition.zoom
+                m.addOnCameraMoveListener { zoom = m.cameraPosition.zoom } // keep the readout live
                 // Tap a property → identify it, highlight its whole unit, forecast the spot.
                 m.addOnMapClickListener { latLng ->
                     val hits = featuresAt(m, latLng, enabled)
@@ -444,8 +454,11 @@ fun MapScreen() {
                         // Build a choice per overlapping layer (its info + its highlight); the
                         // sheet lists them when there's more than one so you can pick by color.
                         choices = hits.map { (ov, feat) ->
-                            val hl = (ov.groupField?.let { gf -> feat.str(gf)?.let { Highlight(ov, gf, it) } })
-                                ?: feat.str("OBJECTID")?.let { Highlight(ov, "OBJECTID", it) }
+                            // Points don't outline a unit — the amber tap pin marks them. Polygons
+                            // highlight their whole unit (by group value, else the single parcel).
+                            val hl = if (ov.point) null
+                                else (ov.groupField?.let { gf -> feat.str(gf)?.let { Highlight(ov, gf, it) } })
+                                    ?: feat.str("OBJECTID")?.let { Highlight(ov, "OBJECTID", it) }
                             SpotChoice(describeFeature(ov, feat, latLng.latitude, latLng.longitude), hl)
                         }
                         choiceIdx = 0
@@ -496,7 +509,10 @@ fun MapScreen() {
                     withContext(Dispatchers.IO) { MaineGisRepository.fetchGeoJson(ov.layerUrl, ov.generalizeDeg, ov.where) }
                         .also { GeoCache.save(context, ov.id, it) }
                 }.getOrNull()
-                if (geo != null) data[ov.id] = geo
+                if (geo != null) {
+                    // Add the derived kayak/ramp/concrete/accessible flags the sub-filters key off.
+                    data[ov.id] = if (ov.id == "va-water-access") annotateWaterAccess(geo) else geo
+                }
                 loading[ov.id] = false
             }
         }
@@ -504,6 +520,25 @@ fun MapScreen() {
         // Keep the map's sources/layers in step with the toggles + the data we've loaded.
         LaunchedEffect(style, enabled, data.keys.toList()) {
             style?.let { syncOverlays(it, enabled, data) }
+        }
+
+        // Apply the water-access sub-filters to its point + label layers. Selected chips OR
+        // together; none selected shows every site. Re-runs when the layer (re)appears too.
+        val selectedWaterId = selected?.takeIf { it.overlay?.id == "va-water-access" }?.featureId
+        LaunchedEffect(style, waterFilters, "va-water-access" in enabled, data["va-water-access"], selectedWaterId) {
+            val s = style ?: return@LaunchedEffect
+            // OR: a site shows if it matches ANY picked chip, so picking more shows more.
+            val base: Expression = if (waterFilters.isEmpty()) Expression.literal(true) else Expression.any(
+                *waterFilters.mapNotNull { key ->
+                    WaterFilter.prop[key]?.let { Expression.eq(Expression.get(it), Expression.literal(true)) }
+                }.toTypedArray(),
+            )
+            // Hide the blue wave for the SELECTED site — applySpotPin draws it as an orange wave.
+            val pointFilter = selectedWaterId?.let { id ->
+                Expression.all(base, Expression.neq(Expression.toNumber(Expression.get("OBJECTID")), Expression.literal(id.toDoubleOrNull() ?: -1.0)))
+            } ?: base
+            s.getLayerAs<SymbolLayer>("ov-va-water-access-point")?.setFilter(pointFilter)
+            s.getLayerAs<SymbolLayer>("ov-va-water-access-label")?.setFilter(base)
         }
 
         // Highlight the tapped unit (OnX-style) on the current style. triggerRepaint forces the
@@ -516,7 +551,7 @@ fun MapScreen() {
         // Drop a pin exactly where the forecast was taken (tap or long-press), so you can
         // see the spot the numbers belong to. Cleared when the sheet closes.
         LaunchedEffect(style, selected?.lat, selected?.lon) {
-            style?.let { applySpotPin(it, selected?.lat, selected?.lon) }
+            style?.let { applySpotPin(it, selected?.lat, selected?.lon, selected?.overlay?.id == "va-water-access") }
             map?.triggerRepaint()
         }
 
@@ -547,17 +582,11 @@ fun MapScreen() {
         // it never blocks the map — the gesture is detected on the MapView itself).
         MeasureLineOverlay(measureA, measureB, measureYd)
 
+        // Clean Google-Maps-style chrome: layers + compass stacked top-right, my-location
+        // bottom-right. (Offline "save area" lives in the Offline maps screen, not here.)
         Column(Modifier.align(Alignment.TopEnd).padding(16.dp), horizontalAlignment = Alignment.End) {
             MapIconButton(Icons.Outlined.Layers, "Map layers") { showLayers = true }
             Spacer(Modifier.height(10.dp))
-            MapIconButton(Icons.Outlined.Download, "Save this area for offline", onClick = startDownload)
-        }
-
-        // Reset-to-north (compass) + recenter-on-me, stacked bottom-right like Google Maps.
-        Column(
-            Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 24.dp),
-            horizontalAlignment = Alignment.End,
-        ) {
             MapIconButton(Icons.Outlined.Explore, "Reset map to north") {
                 val m = map ?: return@MapIconButton
                 val cp = m.cameraPosition
@@ -567,19 +596,38 @@ fun MapScreen() {
                     ),
                 )
             }
-            Spacer(Modifier.height(10.dp))
-            MapIconButton(Icons.Outlined.MyLocation, "Center on my location") {
-                val m = map ?: return@MapIconButton
-                scope.launch {
-                    val place = withContext(Dispatchers.IO) { LocationProvider.current(context) } ?: return@launch
-                    m.animateCamera(
-                        org.maplibre.android.camera.CameraUpdateFactory.newLatLngZoom(LatLng(place.lat, place.lon), 13.0),
-                    )
-                }
+        }
+
+        MapIconButton(
+            Icons.Outlined.MyLocation, "Center on my location",
+            Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 24.dp),
+        ) {
+            val m = map ?: return@MapIconButton
+            scope.launch {
+                val place = withContext(Dispatchers.IO) { LocationProvider.current(context) } ?: return@launch
+                m.animateCamera(
+                    org.maplibre.android.camera.CameraUpdateFactory.newLatLngZoom(LatLng(place.lat, place.lon), 13.0),
+                )
             }
         }
 
-        (downloadPct?.let { "Downloading map… $it%" } ?: toast)?.let { msg ->
+        // Small live zoom readout, bottom-left — so we can dial layer visibility by exact zoom.
+        Surface(
+            Modifier.align(Alignment.BottomStart).padding(start = 16.dp, bottom = 24.dp),
+            shape = RoundedCornerShape(8.dp),
+            color = KairosColors.Surface.copy(alpha = 0.85f),
+            shadowElevation = 2.dp,
+        ) {
+            Text(
+                "z ${"%.1f".format(zoom)}",
+                Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                style = MaterialTheme.typography.labelSmall,
+                color = KairosColors.Dim,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+
+        toast?.let { msg ->
             Surface(
                 Modifier.align(Alignment.TopCenter).padding(top = 52.dp),
                 shape = RoundedCornerShape(999.dp),
@@ -598,8 +646,10 @@ fun MapScreen() {
                 LayerSheet(
                     base = base,
                     enabled = enabled,
+                    waterFilters = waterFilters,
                     onPickBase = { base = it },
                     onToggleOverlay = { id -> enabled = if (id in enabled) enabled - id else enabled + id },
+                    onToggleWaterFilter = { key -> waterFilters = if (key in waterFilters) waterFilters - key else waterFilters + key },
                     onDismiss = { showLayers = false },
                 )
             }
@@ -672,19 +722,67 @@ private fun enableLocation(context: Context, map: MapLibreMap, style: Style) {
 
 // ---- Overlay rendering ---------------------------------------------------------------
 
+/** A small, simple wave marker for water-access pins: a colored disc with a white ring and two
+ *  white wavelets, so a launch/put-in reads clearly over any base map. Drawn in code (no drawable
+ *  asset needed) and registered once on the style. */
+private fun waveMarker(color: Int): Bitmap {
+    val size = 48
+    val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    val c = Canvas(bmp)
+    val cx = size / 2f
+    val cy = size / 2f
+    val r = size / 2f - 4f
+    val p = Paint(Paint.ANTI_ALIAS_FLAG)
+    p.color = android.graphics.Color.argb(70, 0, 0, 0)   // soft shadow
+    c.drawCircle(cx, cy + 1.5f, r + 1.5f, p)
+    p.color = color                                       // colored disc
+    c.drawCircle(cx, cy, r, p)
+    p.style = Paint.Style.STROKE                          // white ring
+    p.strokeWidth = 2.5f
+    p.color = android.graphics.Color.WHITE
+    c.drawCircle(cx, cy, r, p)
+    p.strokeWidth = 2.8f                                  // two wavelets
+    p.strokeCap = Paint.Cap.ROUND
+    val w = r * 1.15f
+    val left = cx - w / 2f
+    val right = cx + w / 2f
+    val path = Path()
+    for (row in listOf(cy - 3.5f, cy + 3.5f)) {
+        path.reset()
+        path.moveTo(left, row)
+        path.quadTo(left + w * 0.25f, row - 4.5f, cx, row)
+        path.quadTo(right - w * 0.25f, row + 4.5f, right, row)
+        c.drawPath(path, p)
+    }
+    return bmp
+}
+
 /** Add/update/remove overlay sources + layers on [style] to match [enabled] + loaded [data]. */
 private fun syncOverlays(style: Style, enabled: Set<String>, data: Map<String, String>) {
     for (ov in OVERLAYS) {
         val srcId = "ov-${ov.id}"
         val fillId = "$srcId-fill"
         val lineId = "$srcId-line"
+        val pointId = "$srcId-point"
         val labelId = "$srcId-label"
         val geo = data[ov.id]
         val want = ov.id in enabled && geo != null
         val hasSrc = style.getSource(srcId) != null
         if (want && !hasSrc) {
             style.addSource(GeoJsonSource(srcId, geo))
-            if (ov.filled) {
+            if (ov.point) {
+                // Point layer (water access): a small wave marker registered once on the style.
+                val iconId = "wave-marker"
+                if (style.getImage(iconId) == null) style.addImage(iconId, waveMarker(ov.color.toArgb()))
+                val marker = SymbolLayer(pointId, srcId).withProperties(
+                    PropertyFactory.iconImage(iconId),
+                    PropertyFactory.iconSize(1.3f),
+                    PropertyFactory.iconAllowOverlap(true),
+                    PropertyFactory.iconIgnorePlacement(true),
+                )
+                ov.minZoom?.let { marker.setMinZoom(it.toFloat()) }
+                style.addLayer(marker)
+            } else if (ov.filled) {
                 // Fill only — NO per-parcel outline. Big units (e.g. Scarborough Marsh WMA) are
                 // hundreds of separate acquisition parcels; outlining each drew a mess of interior
                 // lines. The uniform fill makes abutting parcels read as one shape (exact
@@ -720,7 +818,14 @@ private fun syncOverlays(style: Style, enabled: Set<String>, data: Map<String, S
                     PropertyFactory.textAllowOverlap(false),
                     PropertyFactory.textOptional(true),
                 )
-                label.setMinZoom(12f)
+                if (ov.point) {
+                    // Sit the name just below the dot instead of on top of it.
+                    label.setProperties(
+                        PropertyFactory.textOffset(arrayOf(0f, 1.2f)),
+                        PropertyFactory.textAnchor(Property.TEXT_ANCHOR_TOP),
+                    )
+                }
+                label.setMinZoom(if (ov.point) 10f else 12f)
                 style.addLayer(label)
             }
         } else if (want && hasSrc) {
@@ -729,6 +834,7 @@ private fun syncOverlays(style: Style, enabled: Set<String>, data: Map<String, S
             style.getLayer(labelId)?.let { style.removeLayer(it) }
             style.getLayer(fillId)?.let { style.removeLayer(it) }
             style.getLayer(lineId)?.let { style.removeLayer(it) }
+            style.getLayer(pointId)?.let { style.removeLayer(it) }
             style.removeSource(srcId)
         }
     }
@@ -759,26 +865,49 @@ private fun applyHighlight(style: Style, highlight: Highlight?) {
     style.addLayer(fill)
 }
 
-/** Drop (or move, or clear) the "you tapped here" marker — a bright amber dot with a white
- *  ring and a soft halo, distinct from the blue GPS dot. Null coords remove it. */
-private fun applySpotPin(style: Style, lat: Double?, lon: Double?) {
-    listOf("pin-core", "pin-halo").forEach { id -> style.getLayer(id)?.let { style.removeLayer(it) } }
+/** Drop (or move, or clear) the "you tapped here" marker. For a water-access pin it's an ORANGE
+ *  wave icon (the same mark as the blue pins, selected) floating over a small amber locator dot;
+ *  for any other spot it's a bright amber dot with a white ring and a soft halo, distinct from the
+ *  blue GPS dot. Null coords remove it. */
+private fun applySpotPin(style: Style, lat: Double?, lon: Double?, water: Boolean) {
+    listOf("pin-wave", "pin-core", "pin-halo").forEach { id -> style.getLayer(id)?.let { style.removeLayer(it) } }
     style.getSource("spot-pin")?.let { style.removeSource(it) }
     if (lat == null || lon == null) return
     val geo = """{"type":"Feature","geometry":{"type":"Point","coordinates":[$lon,$lat]},"properties":{}}"""
     style.addSource(GeoJsonSource("spot-pin", geo))
-    val halo = CircleLayer("pin-halo", "spot-pin").withProperties(
-        PropertyFactory.circleRadius(12f),
-        PropertyFactory.circleColor(android.graphics.Color.argb(64, 222, 133, 33)), // Amber wash
-    )
-    val core = CircleLayer("pin-core", "spot-pin").withProperties(
-        PropertyFactory.circleRadius(7f),
-        PropertyFactory.circleColor(0xFFDE8521.toInt()), // brand Amber
-        PropertyFactory.circleStrokeColor(android.graphics.Color.WHITE),
-        PropertyFactory.circleStrokeWidth(2.5f),
-    )
-    style.addLayer(halo)
-    style.addLayer(core)
+    if (water) {
+        // Small amber ground dot, with the orange wave mark floating just above it.
+        if (style.getImage("wave-sel") == null) style.addImage("wave-sel", waveMarker(0xFFDE8521.toInt())) // brand Amber
+        val dot = CircleLayer("pin-core", "spot-pin").withProperties(
+            PropertyFactory.circleRadius(5f),
+            PropertyFactory.circleColor(0xFFDE8521.toInt()),
+            PropertyFactory.circleStrokeColor(android.graphics.Color.WHITE),
+            PropertyFactory.circleStrokeWidth(2f),
+        )
+        val wave = SymbolLayer("pin-wave", "spot-pin").withProperties(
+            PropertyFactory.iconImage("wave-sel"),
+            PropertyFactory.iconSize(1.5f),
+            PropertyFactory.iconAllowOverlap(true),
+            PropertyFactory.iconIgnorePlacement(true),
+            PropertyFactory.iconAnchor(Property.ICON_ANCHOR_BOTTOM),
+            PropertyFactory.iconOffset(arrayOf(0f, -3f)),
+        )
+        style.addLayer(dot)
+        style.addLayer(wave)
+    } else {
+        val halo = CircleLayer("pin-halo", "spot-pin").withProperties(
+            PropertyFactory.circleRadius(12f),
+            PropertyFactory.circleColor(android.graphics.Color.argb(64, 222, 133, 33)), // Amber wash
+        )
+        val core = CircleLayer("pin-core", "spot-pin").withProperties(
+            PropertyFactory.circleRadius(7f),
+            PropertyFactory.circleColor(0xFFDE8521.toInt()), // brand Amber
+            PropertyFactory.circleStrokeColor(android.graphics.Color.WHITE),
+            PropertyFactory.circleStrokeWidth(2.5f),
+        )
+        style.addLayer(halo)
+        style.addLayer(core)
+    }
 }
 
 /** Run the engine at a tapped spot: fetch its weather, score hunt + fish, build a plan. */
@@ -932,6 +1061,14 @@ private fun lookupLinks(name: String, owner: String?): List<Pair<String, String>
     )
 }
 
+/** Open the spot in the user's maps app: a geo: URI with a labeled q= pops the standard Android
+ *  app chooser (Google Maps, Waze, etc.) and drops a pin they can navigate to. */
+private fun openDirections(context: Context, lat: Double, lon: Double, label: String) {
+    val uri = Uri.parse("geo:$lat,$lon?q=$lat,$lon(${Uri.encode(label)})")
+    val intent = Intent(Intent.ACTION_VIEW, uri)
+    runCatching { context.startActivity(Intent.createChooser(intent, "Directions")) }
+}
+
 /** Every overlay with a feature under the tap (one per layer, topmost feature), in overlay
  *  order. Empty = open ground. More than one = the tap landed on overlapping layers. */
 private fun featuresAt(map: MapLibreMap, latLng: LatLng, enabled: Set<String>): List<Pair<MapOverlay, org.maplibre.geojson.Feature>> {
@@ -939,8 +1076,22 @@ private fun featuresAt(map: MapLibreMap, latLng: LatLng, enabled: Set<String>): 
     val out = mutableListOf<Pair<MapOverlay, org.maplibre.geojson.Feature>>()
     for (ov in OVERLAYS) {
         if (ov.id !in enabled) continue
-        val layerId = "ov-${ov.id}-" + if (ov.filled) "fill" else "line"
-        val f = runCatching { map.queryRenderedFeatures(point, layerId) }.getOrNull().orEmpty().firstOrNull()
+        val layerId = "ov-${ov.id}-" + when { ov.point -> "point"; ov.filled -> "fill"; else -> "line" }
+        val f = if (ov.point) {
+            // Pins are small, so query a padded box around the finger (a comfortable tap target)
+            // and take the pin NEAREST the tap — so you hit the one you meant, not a fat-finger.
+            val pad = 26f
+            val rect = android.graphics.RectF(point.x - pad, point.y - pad, point.x + pad, point.y + pad)
+            runCatching { map.queryRenderedFeatures(rect, layerId) }.getOrNull().orEmpty()
+                .minByOrNull { feat ->
+                    val g = feat.geometry() as? org.maplibre.geojson.Point ?: return@minByOrNull Float.MAX_VALUE
+                    val sp = map.projection.toScreenLocation(LatLng(g.latitude(), g.longitude()))
+                    val dx = sp.x - point.x; val dy = sp.y - point.y
+                    dx * dx + dy * dy
+                }
+        } else {
+            runCatching { map.queryRenderedFeatures(point, layerId) }.getOrNull().orEmpty().firstOrNull()
+        }
         if (f != null) out += ov to f
     }
     return out
@@ -1029,36 +1180,126 @@ private fun describeFeature(ov: MapOverlay, f: org.maplibre.geojson.Feature, lat
         ),
         lat = lat, lon = lon,
     )
+    "va-water-access" -> {
+        // Use the site's own coordinates (not the finger) so Directions, the marker, and the
+        // forecast all point at the exact launch.
+        val pt = f.geometry() as? org.maplibre.geojson.Point
+    FeatureInfo(
+        overlay = ov,
+        title = f.str("SITENAME")?.let { titleCase(it) } ?: "Water access",
+        facts = listOfNotNull(
+            f.str("WATERBODY")?.let { "Water" to titleCase(it) },
+            "Launch" to rampSummary(f),
+            f.str("COUNTY")?.let { "County" to titleCase(it) },
+        ),
+        moreFacts = listOfNotNull(
+            f.str("Type_of_Ramp")?.let { "Ramp detail" to titleCase(it) },
+            waterClassLabel(f.str("CLASS"))?.let { "Water type" to it },
+            f.str("Owner")?.let { "Owner" to it },
+            f.str("Maintenance_Provider")?.let { "Maintained by" to it },
+            f.str("LOCATION")?.let { "Getting there" to it },
+        ),
+        description = null,
+        links = listOfNotNull(ov.legalLink?.let { "Virginia DWR — Where to Boat" to it }),
+        lat = pt?.latitude() ?: lat, lon = pt?.longitude() ?: lon,
+        featureId = f.str("OBJECTID"),
+    )
+    }
     else -> FeatureInfo(ov, ov.label, emptyList(), emptyList(), null, emptyList(), lat, lon)
+}
+
+/** Number of boat ramps at a water-access site (0 / none = car-top / hand launch only). Read
+ *  as a raw number because [str] deliberately drops "0" values. */
+private fun org.maplibre.geojson.Feature.rampCount(): Int? {
+    val el = properties()?.get("NO_OFRAMPS") ?: return null
+    if (el.isJsonNull || !el.isJsonPrimitive) return null
+    return runCatching { el.asDouble.toInt() }.getOrNull()
+}
+
+/** A kayaker-friendly one-liner for a launch: hand-launch when there's no boat ramp, else the
+ *  ramp count. This is the field that answers "can my parents put a kayak in here?". */
+private fun rampSummary(f: org.maplibre.geojson.Feature): String = when (val n = f.rampCount() ?: 0) {
+    0 -> "Car-top / hand launch (no boat ramp)"
+    1 -> "1 boat ramp (kayak-friendly)"
+    else -> "$n boat ramps (kayak-friendly)"
+}
+
+/** Human label for the water CLASS code. */
+private fun waterClassLabel(v: String?): String? = when (v?.trim()?.uppercase()) {
+    "FW" -> "Freshwater"
+    "SW" -> "Tidal / saltwater"
+    "F/S" -> "Fresh & tidal"
+    else -> null
+}
+
+/** The water-access sub-filters — just the one distinction that matters for a paddler: a spot
+ *  you can hand/car-top launch a kayak from (no trailer) vs. a trailer boat ramp. Some spots are
+ *  both. The raw DWR fields are messy free text with no coded lookup, so we derive these two
+ *  booleans once (see [annotateWaterAccess]) and filter on them. Chips OR together (pick both =
+ *  every site); none picked = every site. */
+private object WaterFilter {
+    const val KAYAK = "kayak"
+    const val RAMP = "ramp"
+    val ALL = listOf(
+        KAYAK to "Kayak / hand launch",
+        RAMP to "Boat ramp",
+    )
+    val prop = mapOf(KAYAK to "k_kayak", RAMP to "k_ramp")
+}
+
+/** Tag each water-access feature with the two booleans the sub-filters key off: whether you can
+ *  hand/car-top launch (no trailer), and whether it has a trailer boat ramp. Runs once on the
+ *  fetched GeoJSON, before it hits the map. */
+private fun annotateWaterAccess(geo: String): String {
+    val root = JSONObject(geo)
+    val feats = root.optJSONArray("features") ?: return geo
+    for (i in 0 until feats.length()) {
+        val props = feats.optJSONObject(i)?.optJSONObject("properties") ?: continue
+        val ramps = props.optDouble("NO_OFRAMPS", 0.0).toInt()
+        val rampText = props.optString("Type_of_Ramp", "").lowercase()
+        val type = props.optString("TYPE", "").uppercase()
+        val hand = ramps <= 0 || type.contains("HC") ||
+            listOf("hand", "canoe", "slide", "car").any { rampText.contains(it) }
+        val ramp = ramps >= 1 || type == "R" || type.startsWith("CR") ||
+            type == "GA" || type == "RS" || type == "BS"
+        props.put("k_kayak", hand)
+        props.put("k_ramp", ramp)
+    }
+    return root.toString()
 }
 
 // ---- Base map style JSON -------------------------------------------------------------
 
-/** USGS The National Map raster tiles — public domain, keyless. ArcGIS tile order is
- *  {z}/{row}/{col}, which maps to MapLibre's {z}/{y}/{x}. */
-private const val USGS_TOPO =
-    "https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}"
-/** USGS Imagery Topo — satellite with roads, place names + contours baked in (the "Hybrid" look). */
-private const val USGS_IMAGERY_TOPO =
-    "https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryTopo/MapServer/tile/{z}/{y}/{x}"
-
 /** Esri World Imagery — free, keyless high-res satellite (ArcGIS tile order {z}/{y}/{x}). */
 private const val ESRI_IMAGERY =
     "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-/** Esri World Hillshade — free, keyless grayscale terrain relief, blended under the topo for a
- *  3D shaded-relief look (the CalTopo/Gaia style hunters read the land with). */
-private const val ESRI_HILLSHADE =
-    "https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}"
+/** Esri Light Gray Canvas — free, keyless clean/minimal light basemap (the "Smooth"/Positron look).
+ *  Split into a label-free base + a labels reference layer, drawn on top. */
+private const val ESRI_LIGHT_GRAY =
+    "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}"
+private const val ESRI_LIGHT_GRAY_REF =
+    "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}"
+/** Esri World Topo — free, keyless clean topo (parks, roads, labels). */
+private const val ESRI_WORLD_TOPO =
+    "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}"
+/** Esri reference overlays — transparent labels/roads to lay over imagery for a labeled hybrid. */
+private const val ESRI_REF_ROADS =
+    "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}"
+private const val ESRI_REF_PLACES =
+    "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
+/** Esri "Alternate" reference — labels ONLY (city/place names, no county/state lines). */
+private const val ESRI_REF_PLACES_ALT =
+    "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places_Alternate/MapServer/tile/{z}/{y}/{x}"
 
 /**
- * The style URI for a base map. The raster (USGS) styles are written to a local file so
- * the SAME uri drives both on-screen display and MapLibre's offline downloader (which
- * needs a resolvable style URL, not inline JSON). Street uses OpenFreeMap's hosted style.
+ * The style URI for a base map. Each raster style is written to a local file so the SAME uri
+ * drives both on-screen display and MapLibre's offline downloader (which needs a resolvable
+ * style URL, not inline JSON).
  */
 internal fun baseStyleUri(context: Context, base: BaseMap): String = when (base) {
-    BaseMap.SHADED -> writeShadedStyle(context)
-    BaseMap.HYBRID -> writeStyleFile(context, "style_hybrid.json", USGS_IMAGERY_TOPO, "USGS The National Map (imagery topo)")
-    BaseMap.AERIAL -> writeStyleFile(context, "style_aerial.json", ESRI_IMAGERY, "Esri, Maxar, Earthstar Geographics")
+    BaseMap.SMOOTH -> writeSmoothStyle(context)
+    BaseMap.AERIAL -> writeHybridStyle(context)
+    BaseMap.TOPO -> writeStyleFile(context, "style_topo.json", ESRI_WORLD_TOPO, "Esri, HERE, Garmin, USGS, © OpenStreetMap contributors")
 }
 
 private fun writeStyleFile(context: Context, name: String, tileUrl: String, attribution: String): String {
@@ -1067,27 +1308,55 @@ private fun writeStyleFile(context: Context, name: String, tileUrl: String, attr
     return "file://${f.absolutePath}"
 }
 
-/** Shaded-relief topo: USGS topo with Esri hillshade blended on top at low opacity for 3D terrain. */
-private fun writeShadedStyle(context: Context): String {
-    val f = java.io.File(context.filesDir, "style_shaded.json")
-    f.writeText(shadedTopoStyleJson())
-    return "file://${f.absolutePath}"
-}
-
-private fun shadedTopoStyleJson(): String = """
+/** The "Satellite" map: Esri World Imagery, kept clean when zoomed out. Road labels fade in only
+ *  once you zoom in (minzoom); the county/state boundary overlay is left off so the imagery isn't
+ *  busy with lines. */
+private fun writeHybridStyle(context: Context): String {
+    val f = java.io.File(context.filesDir, "style_hybrid.json")
+    f.writeText(
+        """
 {
   "version": 8,
   "glyphs": "https://fonts.openmaptiles.org/{fontstack}/{range}.pbf",
   "sources": {
-    "topo": { "type": "raster", "tiles": ["$USGS_TOPO"], "tileSize": 256, "maxzoom": 16, "attribution": "USGS The National Map (topo), Esri World Hillshade" },
-    "hillshade": { "type": "raster", "tiles": ["$ESRI_HILLSHADE"], "tileSize": 256, "maxzoom": 16 }
+    "imagery": { "type": "raster", "tiles": ["$ESRI_IMAGERY"], "tileSize": 256, "maxzoom": 18, "attribution": "Esri, Maxar, Earthstar Geographics" },
+    "statelines": { "type": "raster", "tiles": ["$ESRI_REF_PLACES"], "tileSize": 256, "maxzoom": 18 },
+    "labels": { "type": "raster", "tiles": ["$ESRI_REF_PLACES_ALT"], "tileSize": 256, "maxzoom": 18 },
+    "roads": { "type": "raster", "tiles": ["$ESRI_REF_ROADS"], "tileSize": 256, "maxzoom": 18 }
   },
   "layers": [
-    { "id": "topo", "type": "raster", "source": "topo" },
-    { "id": "hillshade", "type": "raster", "source": "hillshade", "paint": { "raster-opacity": 0.35 } }
+    { "id": "imagery", "type": "raster", "source": "imagery" },
+    { "id": "statelines", "type": "raster", "source": "statelines", "maxzoom": 6 },
+    { "id": "labels", "type": "raster", "source": "labels", "minzoom": 6 },
+    { "id": "roads", "type": "raster", "source": "roads", "minzoom": 11.6 }
   ]
 }
-""".trimIndent()
+        """.trimIndent(),
+    )
+    return "file://${f.absolutePath}"
+}
+
+/** The "Smooth" light map: Esri Light Gray base with its labels layer drawn on top. */
+private fun writeSmoothStyle(context: Context): String {
+    val f = java.io.File(context.filesDir, "style_smooth.json")
+    f.writeText(
+        """
+{
+  "version": 8,
+  "glyphs": "https://fonts.openmaptiles.org/{fontstack}/{range}.pbf",
+  "sources": {
+    "graybase": { "type": "raster", "tiles": ["$ESRI_LIGHT_GRAY"], "tileSize": 256, "maxzoom": 16, "attribution": "Esri, HERE, Garmin, © OpenStreetMap contributors" },
+    "grayref": { "type": "raster", "tiles": ["$ESRI_LIGHT_GRAY_REF"], "tileSize": 256, "maxzoom": 16 }
+  },
+  "layers": [
+    { "id": "graybase", "type": "raster", "source": "graybase" },
+    { "id": "grayref", "type": "raster", "source": "grayref" }
+  ]
+}
+        """.trimIndent(),
+    )
+    return "file://${f.absolutePath}"
+}
 
 /** A minimal MapLibre style with a single full-screen raster layer from an XYZ endpoint. */
 private fun rasterStyleJson(tileUrl: String, attribution: String): String = """
@@ -1116,18 +1385,19 @@ private fun MapIconButton(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     desc: String,
     modifier: Modifier = Modifier,
-    tint: Color = KairosColors.Pine,
+    tint: Color = KairosColors.Dim,
     onClick: () -> Unit,
 ) {
+    // Circular white button with a soft shadow — Google Maps style.
     Surface(
-        modifier = modifier.size(48.dp),
-        shape = RoundedCornerShape(12.dp),
+        modifier = modifier.size(44.dp),
+        shape = CircleShape,
         color = KairosColors.Surface,
-        shadowElevation = 4.dp,
+        shadowElevation = 3.dp,
         onClick = onClick,
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Icon(icon, contentDescription = desc, tint = tint)
+            Icon(icon, contentDescription = desc, tint = tint, modifier = Modifier.size(22.dp))
         }
     }
 }
@@ -1172,11 +1442,19 @@ private fun MeasureLineOverlay(a: Offset?, b: Offset?, yards: Int?) {
 private class MeasureGesture {
     private var t0 = 0L
     private var span0 = 0f
+    private var p0ax = 0f; private var p0ay = 0f  // first finger's start position
+    private var p0bx = 0f; private var p0by = 0f  // second finger's start position
     private var active = false
     private var rejected = false
     private var lastA: Offset? = null
     private var lastB: Offset? = null
     private var lastYd: Int? = null
+
+    private companion object {
+        const val HOLD_MS = 300L    // must hold roughly still this long to arm the measure
+        const val PINCH_TOL = 45f   // finger-spread change past this = a pinch (zoom) → hand to map
+        const val STILL_TOL = 22f   // either finger moving past this before arming = pan/rotate → map
+    }
 
     private fun span(ev: android.view.MotionEvent): Float {
         if (ev.pointerCount < 2) return 0f
@@ -1187,12 +1465,20 @@ private class MeasureGesture {
         when (ev.actionMasked) {
             android.view.MotionEvent.ACTION_POINTER_DOWN -> if (ev.pointerCount == 2) {
                 t0 = System.currentTimeMillis(); span0 = span(ev); active = false; rejected = false
+                p0ax = ev.getX(0); p0ay = ev.getY(0); p0bx = ev.getX(1); p0by = ev.getY(1)
             }
             android.view.MotionEvent.ACTION_MOVE -> if (ev.pointerCount == 2 && !rejected) {
                 if (!active) {
-                    if (kotlin.math.abs(span(ev) - span0) > 60f) { rejected = true; return false } // a pinch → let the map zoom
-                    if (System.currentTimeMillis() - t0 < 160L) return false                        // still deciding (a held press moves nothing)
-                    active = true
+                    // Arm ONLY on a still two-finger hold. Any pinch, pan, or rotate (either finger
+                    // travels) before the hold elapses hands the gesture back to the map so those
+                    // work normally and the measure doesn't pop up by accident.
+                    val moveA = kotlin.math.hypot(ev.getX(0) - p0ax, ev.getY(0) - p0ay)
+                    val moveB = kotlin.math.hypot(ev.getX(1) - p0bx, ev.getY(1) - p0by)
+                    if (kotlin.math.abs(span(ev) - span0) > PINCH_TOL || moveA > STILL_TOL || moveB > STILL_TOL) {
+                        rejected = true; return false
+                    }
+                    if (System.currentTimeMillis() - t0 < HOLD_MS) return false // keep holding to arm
+                    active = true // armed — now the fingers can move/rotate the line freely
                 }
                 val a = Offset(ev.getX(0), ev.getY(0)); val b = Offset(ev.getX(1), ev.getY(1))
                 val la = map.projection.fromScreenLocation(PointF(a.x, a.y))
@@ -1228,8 +1514,10 @@ private fun haversineYards(a: LatLng, b: LatLng): Int {
 private fun LayerSheet(
     base: BaseMap,
     enabled: Set<String>,
+    waterFilters: Set<String>,
     onPickBase: (BaseMap) -> Unit,
     onToggleOverlay: (String) -> Unit,
+    onToggleWaterFilter: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
@@ -1260,10 +1548,36 @@ private fun LayerSheet(
                     Text(ov.label, style = MaterialTheme.typography.bodyLarge, color = KairosColors.Text, modifier = Modifier.weight(1f))
                     Switch(checked = ov.id in enabled, onCheckedChange = { onToggleOverlay(ov.id) })
                 }
+                // The water-access layer carries a sub-filter: when it's on, a row of chips
+                // narrows the pins (kayak / ramp / concrete / accessible). None on = show all.
+                if (ov.id == "va-water-access" && ov.id in enabled) {
+                    Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 24.dp, bottom = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        WaterFilter.ALL.forEach { (key, label) ->
+                            val active = key in waterFilters
+                            Surface(
+                                shape = RoundedCornerShape(999.dp),
+                                color = if (active) ov.color.copy(alpha = 0.16f) else KairosColors.Bg,
+                                border = BorderStroke(if (active) 1.5.dp else 1.dp, if (active) ov.color else KairosColors.Line),
+                                onClick = { onToggleWaterFilter(key) },
+                            ) {
+                                Text(
+                                    label,
+                                    Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (active) ov.color else KairosColors.Dim,
+                                )
+                            }
+                        }
+                    }
+                }
             }
             Spacer(Modifier.height(8.dp))
             Text(
-                "Official Maine GIS (Maine Office of GIS · MDIFW). Boundaries are approximate — not legal survey lines.",
+                "Official state GIS (Maine Office of GIS · MDIFW · Virginia DWR). Boundaries are approximate — not legal survey lines.",
                 style = MaterialTheme.typography.labelSmall,
                 color = KairosColors.Faint,
             )
@@ -1280,6 +1594,7 @@ private fun FeatureSheetContent(
     onClose: () -> Unit,
 ) {
     val uriHandler = LocalUriHandler.current
+    val context = LocalContext.current
     var expanded by remember(info.title, info.lat, info.lon) { mutableStateOf(false) }
     val isLand = info.overlay?.id == "public-land" || info.overlay?.id == "wma"
     Column(
@@ -1369,6 +1684,22 @@ private fun FeatureSheetContent(
         if (info.facts.isNotEmpty()) {
             Spacer(Modifier.height(12.dp))
             info.facts.forEach { (k, v) -> FactRow(k, v) }
+        }
+
+        // Directions — top-level (no submenu): hand the spot to the user's maps app. Brand
+        // Evergreen (Pine), the palette's key-action color.
+        Spacer(Modifier.height(12.dp))
+        FilledTonalButton(
+            onClick = { openDirections(context, info.lat, info.lon, info.title) },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.filledTonalButtonColors(
+                containerColor = KairosColors.Pine,
+                contentColor = Color.White,
+            ),
+        ) {
+            Icon(Icons.Outlined.Directions, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Directions")
         }
 
         // The engine forecast + today's tactic for this exact spot.

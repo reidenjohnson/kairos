@@ -13,7 +13,7 @@ internal object MapPrefs {
     private val DEFAULT_ENABLED = setOf("hunting-verified", "expanded-archery")
 
     fun loadBase(c: Context): BaseMap =
-        runCatching { BaseMap.valueOf(prefs(c).getString("base", null) ?: "") }.getOrDefault(BaseMap.SHADED)
+        runCatching { BaseMap.valueOf(prefs(c).getString("base", null) ?: "") }.getOrDefault(BaseMap.TOPO)
 
     fun saveBase(c: Context, b: BaseMap) {
         prefs(c).edit().putString("base", b.name).apply()
