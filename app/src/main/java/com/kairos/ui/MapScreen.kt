@@ -146,6 +146,7 @@ import org.maplibre.android.style.sources.GeoJsonSource
 internal enum class BaseMap(val label: String, val thumb: Int) {
     TOPO("Topo", R.drawable.base_esritopo),         // Esri World Topo — clean topo w/ parks + labels (default)
     AERIAL("Satellite", R.drawable.base_aerial),    // Esri World Imagery — sharp raw imagery
+    VAAERIAL("VA Aerial", R.drawable.base_vaaerial),// VGIN VBMP — Virginia's own high-res orthoimagery
     SMOOTH("Smooth", R.drawable.base_smooth),       // Esri Light Gray — clean, minimal (for reading filters)
 }
 
@@ -1273,6 +1274,11 @@ private fun annotateWaterAccess(geo: String): String {
 /** Esri World Imagery — free, keyless high-res satellite (ArcGIS tile order {z}/{y}/{x}). */
 private const val ESRI_IMAGERY =
     "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+/** Virginia VBMP most-recent orthoimagery (VGIN) — a WGS84 MapServer, so we use its dynamic
+ *  export endpoint as a WMS-style source (MapLibre fills {bbox-epsg-3857}; the server reprojects).
+ *  Virginia only — blank outside the state. */
+private const val VBMP_EXPORT =
+    "https://vginmaps.vdem.virginia.gov/arcgis/rest/services/VBMP_Imagery/MostRecentImagery_WGS/MapServer/export?bbox={bbox-epsg-3857}&bboxSR=3857&imageSR=3857&size=256,256&format=jpg&transparent=false&f=image"
 /** Esri Light Gray Canvas — free, keyless clean/minimal light basemap (the "Smooth"/Positron look).
  *  Split into a label-free base + a labels reference layer, drawn on top. */
 private const val ESRI_LIGHT_GRAY =
@@ -1299,6 +1305,7 @@ private const val ESRI_REF_PLACES_ALT =
 internal fun baseStyleUri(context: Context, base: BaseMap): String = when (base) {
     BaseMap.SMOOTH -> writeSmoothStyle(context)
     BaseMap.AERIAL -> writeHybridStyle(context)
+    BaseMap.VAAERIAL -> writeVaAerialStyle(context)
     BaseMap.TOPO -> writeStyleFile(context, "style_topo.json", ESRI_WORLD_TOPO, "Esri, HERE, Garmin, USGS, © OpenStreetMap contributors")
 }
 
@@ -1328,6 +1335,31 @@ private fun writeHybridStyle(context: Context): String {
     { "id": "imagery", "type": "raster", "source": "imagery" },
     { "id": "statelines", "type": "raster", "source": "statelines", "maxzoom": 6 },
     { "id": "labels", "type": "raster", "source": "labels", "minzoom": 6 },
+    { "id": "roads", "type": "raster", "source": "roads", "minzoom": 11.6 }
+  ]
+}
+        """.trimIndent(),
+    )
+    return "file://${f.absolutePath}"
+}
+
+/** Virginia's own high-res VBMP orthoimagery, via the ArcGIS dynamic export (WMS-style). Covers
+ *  Virginia only — blank elsewhere. Road/place labels are drawn on top for orientation. */
+private fun writeVaAerialStyle(context: Context): String {
+    val f = java.io.File(context.filesDir, "style_vaaerial.json")
+    f.writeText(
+        """
+{
+  "version": 8,
+  "glyphs": "https://fonts.openmaptiles.org/{fontstack}/{range}.pbf",
+  "sources": {
+    "vbmp": { "type": "raster", "tiles": ["$VBMP_EXPORT"], "tileSize": 256, "maxzoom": 19, "attribution": "VGIN, Virginia Base Mapping Program (VBMP)" },
+    "labels": { "type": "raster", "tiles": ["$ESRI_REF_PLACES_ALT"], "tileSize": 256, "maxzoom": 18 },
+    "roads": { "type": "raster", "tiles": ["$ESRI_REF_ROADS"], "tileSize": 256, "maxzoom": 18 }
+  },
+  "layers": [
+    { "id": "vbmp", "type": "raster", "source": "vbmp" },
+    { "id": "labels", "type": "raster", "source": "labels" },
     { "id": "roads", "type": "raster", "source": "roads", "minzoom": 11.6 }
   ]
 }
