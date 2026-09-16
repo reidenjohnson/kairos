@@ -11,3 +11,9 @@ captures/
 
 # In-progress design mockups (large seeded payloads; regenerated from working files)
 design/
+
+# Release signing — PRIVATE, never commit (repo is public)
+keystore/
+keystore.properties
+*.jks
+*.keystore
