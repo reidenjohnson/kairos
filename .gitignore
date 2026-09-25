@@ -9,8 +9,11 @@ captures/
 .externalNativeBuild/
 .cxx/
 
-# In-progress design mockups (large seeded payloads; regenerated from working files)
+# In-progress design mockups + logo source art (large; not part of the shipped app)
 design/
+
+# Private working notes (handoff logs, research, calibration) — local only, repo is public
+notes/
 
 # Release signing — PRIVATE, never commit (repo is public)
 keystore/

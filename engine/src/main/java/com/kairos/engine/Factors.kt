@@ -4,7 +4,7 @@ import kotlin.math.abs
 
 /**
  * Kairos scoring factors — a faithful Kotlin port of the Python reference
- * (`forecast.py`) in the sibling `kairos` docs folder. Every factor returns a
+ * (`forecast.py`) in the `reference/` folder. Every factor returns a
  * 0..1 sub-score; the per-species weighted sum lives in [Engine].
  *
  * The weights and the research behind each factor are documented in SOURCES.md.

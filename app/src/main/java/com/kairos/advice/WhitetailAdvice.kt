@@ -63,7 +63,7 @@ internal fun whitetailPlan(
     // NORMAL, not the absolute number, and being warmer than normal shifts the deer's
     // *schedule* (to the cool edges and the dark), it doesn't make the day "bad"; (2) in
     // light wind, mature bucks travel on the thermals more than the wind, which only takes
-    // over past ~10-15 mph. See WHITETAIL_RESEARCH.md in the kairos docs folder.
+    // over past ~10-15 mph. See WHITETAIL_RESEARCH.md in the notes/ folder.
     val normalAir = MAINE_AIR_NORMAL_F[date.monthValue]?.toDouble()
     val anomalyF = normalAir?.let { c.airF - it }        // positive = warmer than normal
     val aboveNormal = anomalyF != null && anomalyF >= 8.0 // ~10-degrees-warmer schedule shift
