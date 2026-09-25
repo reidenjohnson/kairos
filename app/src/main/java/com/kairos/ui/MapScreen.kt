@@ -166,6 +166,9 @@ internal data class MapOverlay(
     val where: String = "1=1",
     /** Heavy statewide layers only draw once zoomed in past this, to keep panning smooth. */
     val minZoom: Double? = null,
+    /** Hide the layer (and its labels) once zoomed in PAST this — e.g. district lines are a
+     *  big-picture reference and just clutter at property level. null = always shown. */
+    val maxZoom: Double? = null,
     /** Property that groups a feature with the rest of its unit — tapping one highlights
      *  the whole thing (OnX-style). e.g. PROJECT ties a park's scattered parcels together. */
     val groupField: String? = null,
@@ -272,6 +275,7 @@ internal val OVERLAYS: List<MapOverlay> = listOf(
         filled = false,
         generalizeDeg = null, // full resolution
         minZoom = 5.9, // borders + district numbers stay visible zoomed out to ~statewide
+        maxZoom = 10.5, // ...and step aside at property level so they don't clutter parcels
         groupField = "IDENTIFIER", // tap a district line → highlight that whole district
         labelFields = listOf("IDENTIFIER"), // district number, shown whenever the border is
         attribution = "Maine DIFW — Wildlife Management Districts",
@@ -818,6 +822,7 @@ private fun syncOverlays(style: Style, enabled: Set<String>, data: Map<String, S
                     PropertyFactory.lineWidth(2.4f),
                 )
                 ov.minZoom?.let { line.setMinZoom(it.toFloat()) }
+                ov.maxZoom?.let { line.setMaxZoom(it.toFloat()) }
                 style.addLayer(line)
             }
             // Name label — only once zoomed to property level, so the map isn't word-noise.
@@ -855,6 +860,7 @@ private fun syncOverlays(style: Style, enabled: Set<String>, data: Map<String, S
                         else -> 12f
                     },
                 )
+                ov.maxZoom?.let { label.setMaxZoom(it.toFloat()) }
                 style.addLayer(label)
             }
         } else if (want && hasSrc) {
