@@ -273,6 +273,7 @@ internal val OVERLAYS: List<MapOverlay> = listOf(
         generalizeDeg = null, // full resolution
         minZoom = 7.0,
         groupField = "IDENTIFIER", // tap a district line → highlight that whole district
+        labelFields = listOf("IDENTIFIER"), // district number, shown whenever the border is
         attribution = "Maine DIFW — Wildlife Management Districts",
         disclaimer = "The 29 statewide management districts that season dates and permits key off of.",
     ),
@@ -486,6 +487,10 @@ fun MapScreen() {
         // Apply the base style; the overlay sync below re-adds sources onto the new style.
         LaunchedEffect(map, base) {
             val m = map ?: return@LaunchedEffect
+            // The compass-driven location dot redraws on the current style; if it fires while a
+            // new style is loading MapLibre throws ("getSourceAs when a newer style is loading")
+            // and the app dies. Park it until the new style is up.
+            disableLocation(m)
             m.setStyle(Style.Builder().fromUri(baseStyleUri(context, base))) { s ->
                 enableLocation(context, m, s)
                 style = s
@@ -675,10 +680,12 @@ private fun MapLibreView(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val gesture = remember { MeasureGesture() }
+    val readyMap = remember { arrayOfNulls<MapLibreMap>(1) }
     val mapView = remember {
         MapView(context).apply {
             onCreate(null)
             getMapAsync { m ->
+                readyMap[0] = m
                 onMapReady(m)
                 // Detect a two-finger HOLD at the touch layer: a still two-finger press measures
                 // (consumes the touch); a normal pinch/pan is left to the map to zoom/scroll.
@@ -703,6 +710,8 @@ private fun MapLibreView(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
+            // Stop compass updates before the map/style is torn down (leaving the Map tab).
+            readyMap[0]?.let { disableLocation(it) }
             mapView.onDestroy()
         }
     }
@@ -718,6 +727,14 @@ private fun enableLocation(context: Context, map: MapLibreMap, style: Style) {
         lc.isLocationComponentEnabled = true
         lc.cameraMode = CameraMode.NONE
         lc.renderMode = RenderMode.COMPASS
+    }
+}
+
+/** Stop the location dot (and its compass updates) — before a style swap or teardown. */
+private fun disableLocation(map: MapLibreMap) {
+    runCatching {
+        val lc = map.locationComponent
+        if (lc.isLocationComponentActivated) lc.isLocationComponentEnabled = false
     }
 }
 
@@ -826,7 +843,18 @@ private fun syncOverlays(style: Style, enabled: Set<String>, data: Map<String, S
                         PropertyFactory.textAnchor(Property.TEXT_ANCHOR_TOP),
                     )
                 }
-                label.setMinZoom(if (ov.point) 10f else 12f)
+                if (!ov.filled && !ov.point) {
+                    // District numbers: larger, bold-ish, and visible at the same zoom as the
+                    // border itself (no extra zooming needed to read which WMD you're in).
+                    label.setProperties(PropertyFactory.textSize(16f), PropertyFactory.textHaloWidth(2f))
+                }
+                label.setMinZoom(
+                    when {
+                        ov.point -> 10f
+                        !ov.filled -> (ov.minZoom ?: 0.0).toFloat()
+                        else -> 12f
+                    },
+                )
                 style.addLayer(label)
             }
         } else if (want && hasSrc) {
@@ -1324,7 +1352,7 @@ private fun writeHybridStyle(context: Context): String {
         """
 {
   "version": 8,
-  "glyphs": "https://fonts.openmaptiles.org/{fontstack}/{range}.pbf",
+  "glyphs": "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
   "sources": {
     "imagery": { "type": "raster", "tiles": ["$ESRI_IMAGERY"], "tileSize": 256, "maxzoom": 18, "attribution": "Esri, Maxar, Earthstar Geographics" },
     "statelines": { "type": "raster", "tiles": ["$ESRI_REF_PLACES"], "tileSize": 256, "maxzoom": 18 },
@@ -1351,7 +1379,7 @@ private fun writeVaAerialStyle(context: Context): String {
         """
 {
   "version": 8,
-  "glyphs": "https://fonts.openmaptiles.org/{fontstack}/{range}.pbf",
+  "glyphs": "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
   "sources": {
     "vbmp": { "type": "raster", "tiles": ["$VBMP_EXPORT"], "tileSize": 256, "maxzoom": 19, "attribution": "VGIN, Virginia Base Mapping Program (VBMP)" },
     "labels": { "type": "raster", "tiles": ["$ESRI_REF_PLACES_ALT"], "tileSize": 256, "maxzoom": 18 },
@@ -1375,7 +1403,7 @@ private fun writeSmoothStyle(context: Context): String {
         """
 {
   "version": 8,
-  "glyphs": "https://fonts.openmaptiles.org/{fontstack}/{range}.pbf",
+  "glyphs": "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
   "sources": {
     "graybase": { "type": "raster", "tiles": ["$ESRI_LIGHT_GRAY"], "tileSize": 256, "maxzoom": 16, "attribution": "Esri, HERE, Garmin, © OpenStreetMap contributors" },
     "grayref": { "type": "raster", "tiles": ["$ESRI_LIGHT_GRAY_REF"], "tileSize": 256, "maxzoom": 16 }
@@ -1394,7 +1422,7 @@ private fun writeSmoothStyle(context: Context): String {
 private fun rasterStyleJson(tileUrl: String, attribution: String): String = """
 {
   "version": 8,
-  "glyphs": "https://fonts.openmaptiles.org/{fontstack}/{range}.pbf",
+  "glyphs": "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
   "sources": {
     "base": {
       "type": "raster",
