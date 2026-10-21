@@ -6,6 +6,12 @@ Kairos reads live weather for your stands and your own trail-camera photos, then
 which stand, which hours, and whether the wind is right for that stand. Every recommendation comes from cited research or
 expert consensus. When the evidence isn't there, the app says "unknown" instead of guessing.
 
+<p>
+  <img src="docs/screenshots/kairos-today.png" width="260" alt="Today: the next good sit at your stand">
+  <img src="docs/screenshots/kairos-forecast.png" width="260" alt="Forecast: the week, with the wind at the stand">
+  <img src="docs/screenshots/kairos-learn.png" width="260" alt="Learn: 95 lessons">
+</p>
+
 ## What it does
 
 - **Today** shows today's best sit at your stand, with conditions and legal shooting light.
