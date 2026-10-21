@@ -1,0 +1,24 @@
+*.iml
+.gradle/
+local.properties
+.idea/
+.DS_Store
+Thumbs.db
+build/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Research notes and design files stay in the private repo.
+
+**/__pycache__/
+
+# Release signing — PRIVATE, never commit
+keystore/
+keystore.properties
+*.jks
+*.keystore
+tools/windninja/
+
+# Data exports for review (his trail-cam data): local only
+exports/
